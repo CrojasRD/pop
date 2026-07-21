@@ -110,6 +110,7 @@ export function validatePopItemRows(
 // provincia, lugar, joyeria, zona, tipo_evento, descripcion, justificacion
 // -------------------------------------------------------------------
 export interface EventImportRow {
+  [key: string]: unknown;
   event_name: string;
   start_date: string;
   end_date: string;

@@ -31,3 +31,8 @@ next-env.d.ts
 # OS
 .DS_Store
 Thumbs.db
+
+# Scripts locales con credenciales (NO subir al repo)
+run-sql.js
+setup.bat
+deploy.bat
