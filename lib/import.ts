@@ -47,6 +47,7 @@ function isValidDate(value: string) {
 // nombre, categoria, descripcion, codigo_interno, cantidad_total, stock_minimo
 // -------------------------------------------------------------------
 export interface PopItemImportRow {
+  [key: string]: unknown;
   name: string;
   category: string;
   description: string;
@@ -184,6 +185,7 @@ export function validateEventRows(
 // JOYERÍAS — columnas esperadas: nombre, ciudad, provincia, direccion, zona
 // -------------------------------------------------------------------
 export interface StoreImportRow {
+  [key: string]: unknown;
   code: string;
   name: string;
   city: string;
@@ -251,6 +253,7 @@ export function validateStoreRows(
 // codigo_material, codigo_joyeria, cantidad, fecha_entrega, notas
 // -------------------------------------------------------------------
 export interface AssignmentImportRow {
+  [key: string]: unknown;
   item_code: string;
   store_code: string;
   quantity: number;
@@ -323,6 +326,7 @@ function normalizeStatus(value: string): string {
 }
 
 export interface AssignmentUpdateImportRow {
+  [key: string]: unknown;
   store_code: string;
   item_code: string;
   quantity: number;
