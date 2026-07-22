@@ -4,22 +4,39 @@ import type { AppUser } from '@/lib/types';
 
 /** Devuelve el perfil de aplicación (public.users) del usuario autenticado, o null. */
 export async function getCurrentUser(): Promise<AppUser | null> {
-  const supabase = createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  try {
+    const supabase = createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-  if (!user) return null;
+    if (authError) console.error('[auth] getUser error:', authError.message);
+    if (!user) { console.error('[auth] No auth user'); return null; }
 
-  // Usamos el admin client para leer el perfil y evitar bloqueos de RLS
-  const admin = createAdminClient();
-  const { data: profile } = await admin
-    .from('users')
-    .select('*, zone:zones(*)')
-    .eq('id', user.id)
-    .single();
+    // Intentar con admin client (bypasa RLS)
+    try {
+      const admin = createAdminClient();
+      const { data: profile, error: adminErr } = await admin
+        .from('users')
+        .select('*, zone:zones(*)')
+        .eq('id', user.id)
+        .single();
+      if (adminErr) console.error('[auth] admin profile error:', adminErr.message, adminErr.code);
+      if (profile) return profile as AppUser;
+    } catch (e) {
+      console.error('[auth] admin client threw:', e);
+    }
 
-  return (profile as AppUser) ?? null;
+    // Fallback: cliente regular (requiere RLS abierto)
+    const { data: profile, error: regErr } = await supabase
+      .from('users')
+      .select('*, zone:zones(*)')
+      .eq('id', user.id)
+      .single();
+    if (regErr) console.error('[auth] regular profile error:', regErr.message);
+    return (profile as AppUser) ?? null;
+  } catch (e) {
+    console.error('[auth] critical error:', e);
+    return null;
+  }
 }
 
 /** Redirige a /login si no hay sesión. Úsalo al inicio de páginas protegidas. */
