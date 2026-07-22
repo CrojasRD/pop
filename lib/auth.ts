@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import type { AppUser } from '@/lib/types';
 
 /** Devuelve el perfil de aplicación (public.users) del usuario autenticado, o null. */
@@ -11,7 +11,9 @@ export async function getCurrentUser(): Promise<AppUser | null> {
 
   if (!user) return null;
 
-  const { data: profile } = await supabase
+  // Usamos el admin client para leer el perfil y evitar bloqueos de RLS
+  const admin = createAdminClient();
+  const { data: profile } = await admin
     .from('users')
     .select('*, zone:zones(*)')
     .eq('id', user.id)
