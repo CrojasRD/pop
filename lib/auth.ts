@@ -42,8 +42,10 @@ export async function getCurrentUser(): Promise<AppUser | null> {
 /** Redirige a /login si no hay sesión. Úsalo al inicio de páginas protegidas. */
 export async function requireUser(): Promise<AppUser> {
   const user = await getCurrentUser();
-  if (!user) redirect('/login');
-  if (user.status === 'inactive') redirect('/login?error=inactive');
+  // Usamos ?force=true para que el middleware no vuelva a redirigir al dashboard
+  // (rompe el ciclo infinito cuando getCurrentUser falla por problemas de BD/RLS)
+  if (!user) redirect('/login?force=true');
+  if (user.status === 'inactive') redirect('/login?error=inactive&force=true');
   return user;
 }
 
@@ -52,4 +54,4 @@ export async function requireAdmin(): Promise<AppUser> {
   const user = await requireUser();
   if (user.role !== 'admin') redirect('/dashboard?error=forbidden');
   return user;
-}
+      }
