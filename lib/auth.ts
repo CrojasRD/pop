@@ -16,7 +16,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
       const admin = createAdminClient();
       const { data: profile, error: adminErr } = await admin
         .from('users')
-        .select('*, zone:zones(*)')
+        .select('*, zone:zones!zone_id(*)')
         .eq('id', user.id)
         .single();
       if (adminErr) console.error('[auth] admin profile error:', adminErr.message, adminErr.code);
@@ -28,7 +28,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
     // Fallback: cliente regular (requiere RLS abierto)
     const { data: profile, error: regErr } = await supabase
       .from('users')
-      .select('*, zone:zones(*)')
+      .select('*, zone:zones!zone_id(*)')
       .eq('id', user.id)
       .single();
     if (regErr) console.error('[auth] regular profile error:', regErr.message);
@@ -42,8 +42,6 @@ export async function getCurrentUser(): Promise<AppUser | null> {
 /** Redirige a /login si no hay sesión. Úsalo al inicio de páginas protegidas. */
 export async function requireUser(): Promise<AppUser> {
   const user = await getCurrentUser();
-  // Usamos ?force=true para que el middleware no vuelva a redirigir al dashboard
-  // (rompe el ciclo infinito cuando getCurrentUser falla por problemas de BD/RLS)
   if (!user) redirect('/login?force=true');
   if (user.status === 'inactive') redirect('/login?error=inactive&force=true');
   return user;
@@ -54,4 +52,4 @@ export async function requireAdmin(): Promise<AppUser> {
   const user = await requireUser();
   if (user.role !== 'admin') redirect('/dashboard?error=forbidden');
   return user;
-      }
+}
