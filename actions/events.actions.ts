@@ -73,6 +73,54 @@ export async function deleteEvent(id: string): Promise<ActionResult> {
   return { success: true };
 }
 
+export async function bulkDeleteEvents(ids: string[]): Promise<ActionResult & { deletedCount?: number }> {
+  await requireAdmin();
+  if (!ids.length) return { error: 'No hay eventos seleccionados' };
+
+  const supabase = createClient();
+  // Mismo cuidado que en deleteEvent: sin `.select()` no se detecta si RLS/permisos
+  // bloquearon el borrado de alguna o todas las filas.
+  const { error, data } = await supabase.from('events').delete().in('id', ids).select('id');
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: 'No se pudo eliminar ningún evento. Verifica que tengas permisos de administrador.' };
+  }
+
+  for (const row of data) {
+    await logAudit({ action: 'delete', module: 'events', recordId: row.id });
+  }
+  revalidatePath('/eventos');
+  return { success: true, deletedCount: data.length };
+}
+
+export async function bulkApproveEvents(ids: string[], comment = ''): Promise<ActionResult & { approvedCount?: number }> {
+  const admin = await requireAdmin();
+  if (!ids.length) return { error: 'No hay eventos seleccionados' };
+
+  const supabase = createClient();
+  const { error, data } = await supabase
+    .from('events')
+    .update({
+      status: 'approved',
+      admin_comment: comment || null,
+      approved_by: admin.id,
+      approved_at: new Date().toISOString()
+    })
+    .in('id', ids)
+    .eq('status', 'pending')
+    .select('id');
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: 'No se pudo aprobar ningún evento. Verifica que estén pendientes y tengas permisos.' };
+  }
+
+  for (const row of data) {
+    await logAudit({ action: 'approve', module: 'events', recordId: row.id, newValue: { comment } });
+  }
+  revalidatePath('/eventos');
+  return { success: true, approvedCount: data.length };
+}
+
 export async function reviewEvent(id: string, decision: 'approved' | 'rejected', comment: string): Promise<ActionResult> {
   const admin = await requireAdmin();
   const supabase = createClient();
