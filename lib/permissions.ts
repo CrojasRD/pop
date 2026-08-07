@@ -17,6 +17,11 @@ export function canApproveEvent(user: AppUser) {
   return isAdmin(user);
 }
 
+/** Eliminar un evento definitivamente es exclusivo del administrador. */
+export function canDeleteEvent(user: AppUser) {
+  return isAdmin(user);
+}
+
 /** El cronograma del camión lo gestiona exclusivamente el administrador. */
 export function canManageTruckSchedule(user: AppUser) {
   return isAdmin(user);

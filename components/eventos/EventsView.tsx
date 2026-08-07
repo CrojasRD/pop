@@ -2,15 +2,19 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { CalendarDays, List, Plus, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
 import { Table, Thead, Th, Tr, Td, EmptyState } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { ExportButtons } from '@/components/shared/ExportButtons';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { EventCalendar } from './EventCalendar';
 import { EventDetailDialog } from './EventDetailDialog';
 import { formatDate } from '@/lib/utils';
+import { deleteEvent } from '@/actions/events.actions';
+import { canDeleteEvent } from '@/lib/permissions';
 import type { AppUser, EventRecord, Store, Zone } from '@/lib/types';
 
 export function EventsView({
@@ -26,6 +30,7 @@ export function EventsView({
   popItemNames?: Record<string, string>;
   user: AppUser;
 }) {
+  const router = useRouter();
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [selected, setSelected] = useState<EventRecord | null>(null);
   const [zoneFilter, setZoneFilter] = useState('all');
@@ -34,6 +39,8 @@ export function EventsView({
   const [cityFilter, setCityFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<EventRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const filtered = useMemo(() => {
     return events.filter((e) => {
@@ -56,6 +63,15 @@ export function EventsView({
     Ciudad: e.city ?? '',
     Estado: e.status
   }));
+
+  async function handleDeleteEvent() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    await deleteEvent(deleteTarget.id);
+    setDeleting(false);
+    setDeleteTarget(null);
+    router.refresh();
+  }
 
   return (
     <div className="space-y-4">
@@ -125,6 +141,7 @@ export function EventsView({
               <Th>Joyería</Th>
               <Th>Ciudad</Th>
               <Th>Estado</Th>
+              {canDeleteEvent(user) ? <Th></Th> : null}
             </tr>
           </Thead>
           <tbody>
@@ -136,6 +153,11 @@ export function EventsView({
                 <Td>{e.store?.name ?? '—'}</Td>
                 <Td>{e.city ?? '—'}</Td>
                 <Td><Badge status={e.status} /></Td>
+                {canDeleteEvent(user) ? (
+                  <Td onClick={(ev) => ev.stopPropagation()}>
+                    <Button size="sm" variant="danger" onClick={() => setDeleteTarget(e)}>Eliminar</Button>
+                  </Td>
+                ) : null}
               </Tr>
             ))}
           </tbody>
@@ -145,6 +167,16 @@ export function EventsView({
       {selected ? (
         <EventDetailDialog event={selected} user={user} popItemNames={popItemNames} onClose={() => setSelected(null)} />
       ) : null}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteEvent}
+        title="Eliminar evento"
+        description={`¿Confirmas eliminar "${deleteTarget?.event_name}" definitivamente? Esta acción no se puede deshacer.`}
+        confirmLabel={deleting ? 'Eliminando…' : 'Eliminar'}
+        danger
+      />
     </div>
   );
 }
