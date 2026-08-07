@@ -59,8 +59,14 @@ export async function updateEvent(id: string, input: unknown): Promise<ActionRes
 export async function deleteEvent(id: string): Promise<ActionResult> {
   await requireAdmin();
   const supabase = createClient();
-  const { error } = await supabase.from('events').delete().eq('id', id);
+  // Importante: sin `.select()`, Supabase/RLS no informa si el delete realmente
+  // afectó alguna fila — si la política bloquea el borrado, responde "éxito"
+  // sin haber borrado nada. Pedimos las filas eliminadas para poder detectarlo.
+  const { error, data } = await supabase.from('events').delete().eq('id', id).select('id');
   if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: 'No se pudo eliminar el evento. Verifica que tengas permisos de administrador o que el evento todavía exista.' };
+  }
 
   await logAudit({ action: 'delete', module: 'events', recordId: id });
   revalidatePath('/eventos');

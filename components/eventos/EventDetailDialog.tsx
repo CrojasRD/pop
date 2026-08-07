@@ -28,6 +28,7 @@ export function EventDetailDialog({
   const [comment, setComment] = useState(event?.admin_comment ?? '');
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   if (!event) return null;
 
@@ -44,8 +45,13 @@ export function EventDetailDialog({
 
   async function handleDelete() {
     setLoading(true);
-    await deleteEvent(event!.id);
+    setDeleteError(null);
+    const result = await deleteEvent(event!.id);
     setLoading(false);
+    if (result.error) {
+      setDeleteError(result.error);
+      return;
+    }
     setConfirmDelete(false);
     onClose();
     router.refresh();
@@ -119,19 +125,20 @@ export function EventDetailDialog({
             </Link>
           ) : <span />}
           {canDeleteEvent(user) ? (
-            <Button size="sm" variant="danger" onClick={() => setConfirmDelete(true)}>Eliminar</Button>
+            <Button size="sm" variant="danger" onClick={() => { setConfirmDelete(true); setDeleteError(null); }}>Eliminar</Button>
           ) : null}
         </div>
       </div>
 
       <ConfirmDialog
         open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
+        onClose={() => { setConfirmDelete(false); setDeleteError(null); }}
         onConfirm={handleDelete}
         title="Eliminar evento"
         description={`¿Confirmas eliminar "${event.event_name}" definitivamente? Esta acción no se puede deshacer.`}
         confirmLabel={loading ? 'Eliminando…' : 'Eliminar'}
         danger
+        error={deleteError}
       />
     </Dialog>
   );

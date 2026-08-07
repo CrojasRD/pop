@@ -41,6 +41,7 @@ export function EventsView({
   const [dateTo, setDateTo] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<EventRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     return events.filter((e) => {
@@ -67,8 +68,13 @@ export function EventsView({
   async function handleDeleteEvent() {
     if (!deleteTarget) return;
     setDeleting(true);
-    await deleteEvent(deleteTarget.id);
+    setDeleteError(null);
+    const result = await deleteEvent(deleteTarget.id);
     setDeleting(false);
+    if (result.error) {
+      setDeleteError(result.error);
+      return;
+    }
     setDeleteTarget(null);
     router.refresh();
   }
@@ -155,7 +161,7 @@ export function EventsView({
                 <Td><Badge status={e.status} /></Td>
                 {canDeleteEvent(user) ? (
                   <Td onClick={(ev) => ev.stopPropagation()}>
-                    <Button size="sm" variant="danger" onClick={() => setDeleteTarget(e)}>Eliminar</Button>
+                    <Button size="sm" variant="danger" onClick={() => { setDeleteTarget(e); setDeleteError(null); }}>Eliminar</Button>
                   </Td>
                 ) : null}
               </Tr>
@@ -170,12 +176,13 @@ export function EventsView({
 
       <ConfirmDialog
         open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
+        onClose={() => { setDeleteTarget(null); setDeleteError(null); }}
         onConfirm={handleDeleteEvent}
         title="Eliminar evento"
         description={`¿Confirmas eliminar "${deleteTarget?.event_name}" definitivamente? Esta acción no se puede deshacer.`}
         confirmLabel={deleting ? 'Eliminando…' : 'Eliminar'}
         danger
+        error={deleteError}
       />
     </div>
   );
