@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Plus, Upload } from 'lucide-react';
 import { requireUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
-import { InventoryPageTabs } from '@/components/inventario/InventoryPageTabs';
+import { InventoryTable } from '@/components/inventario/InventoryTable';
 import { Button } from '@/components/ui/Button';
 
 export default async function InventarioPage() {
@@ -10,19 +10,11 @@ export default async function InventarioPage() {
   const supabase = createClient();
 
   // RLS ya limita lo que cada rol puede leer; para jefe zonal el catálogo es
-  // visible (para poder solicitar), pero la vista destaca solo lo asignado a su zona.
-  // La vista "Control por zona" muestra todo el catálogo (acrílicos, habladores,
-  // rompetráficos, volantes, tarjetas, etc.), no solo un subconjunto fijo.
-  const [itemsRes, categoriesRes, zonesRes, storesRes, assignmentsRes] = await Promise.all([
+  // visible (para poder solicitar) aunque no vea el detalle de asignación.
+  const [itemsRes, categoriesRes] = await Promise.all([
     supabase.from('pop_items').select('*, category:pop_categories(*)').order('name'),
-    supabase.from('pop_categories').select('*').order('name'),
-    supabase.from('zones').select('*').order('name'),
-    supabase.from('stores').select('*').eq('status', 'active').order('name'),
-    supabase.from('inventory_assignments').select('*')
+    supabase.from('pop_categories').select('*').order('name')
   ]);
-
-  const zoneItems = (itemsRes.data as any) ?? [];
-  const zoneAssignments = (assignmentsRes.data as any) ?? [];
 
   return (
     <div className="space-y-5">
@@ -45,14 +37,9 @@ export default async function InventarioPage() {
         ) : null}
       </div>
 
-      <InventoryPageTabs
-        user={user}
+      <InventoryTable
         items={(itemsRes.data as any) ?? []}
         categories={(categoriesRes.data as any) ?? []}
-        zones={(zonesRes.data as any) ?? []}
-        stores={(storesRes.data as any) ?? []}
-        zoneItems={zoneItems}
-        assignments={zoneAssignments}
         isAdmin={user.role === 'admin'}
       />
     </div>
