@@ -153,14 +153,19 @@ export function ZoneAssetsMatrix({
   }, [items]);
 
   const [zoneId, setZoneId] = useState(isAdmin ? zones[0]?.id ?? '' : user.zone_id ?? '');
+  const showAll = isAdmin && zoneId === 'all';
 
-  const zoneStores = useMemo(
-    () =>
-      stores
-        .filter((s) => s.zone_id === zoneId)
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [stores, zoneId]
-  );
+  const zoneNameById = useMemo(() => new Map(zones.map((z) => [z.id, z.name])), [zones]);
+
+  const zoneStores = useMemo(() => {
+    if (showAll) {
+      return [...stores].sort((a, b) => {
+        const zoneCompare = (zoneNameById.get(a.zone_id ?? '') ?? '').localeCompare(zoneNameById.get(b.zone_id ?? '') ?? '');
+        return zoneCompare !== 0 ? zoneCompare : a.name.localeCompare(b.name);
+      });
+    }
+    return stores.filter((s) => s.zone_id === zoneId).sort((a, b) => a.name.localeCompare(b.name));
+  }, [stores, zoneId, showAll, zoneNameById]);
 
   const cellMap = useMemo(() => {
     const map = new Map<string, InventoryAssignment>();
@@ -189,6 +194,7 @@ export function ZoneAssetsMatrix({
     <div className="space-y-4">
       {isAdmin ? (
         <Select value={zoneId} onChange={(e) => setZoneId(e.target.value)} className="w-64">
+          <option value="all">Todas las zonas</option>
           {zones.map((z) => (
             <option key={z.id} value={z.id}>{z.name}</option>
           ))}
@@ -198,18 +204,19 @@ export function ZoneAssetsMatrix({
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <MetricCard label="Joyerías en la zona" value={zoneStores.length} icon={StoreIcon} />
+        <MetricCard label={showAll ? 'Joyerías totales' : 'Joyerías en la zona'} value={zoneStores.length} icon={StoreIcon} />
         <MetricCard label="Joyerías con daños" value={storesWithDamage} icon={AlertTriangle} tone={storesWithDamage > 0 ? 'danger' : 'default'} />
         <MetricCard label="Activos dañados" value={totalDamaged} icon={Wrench} tone={totalDamaged > 0 ? 'warning' : 'default'} />
       </div>
 
       {zoneStores.length === 0 ? (
-        <EmptyState message="No hay joyerías registradas en esta zona." />
+        <EmptyState message={showAll ? 'No hay joyerías registradas.' : 'No hay joyerías registradas en esta zona.'} />
       ) : (
         <Table>
           <Thead>
             <tr>
               <Th className="whitespace-nowrap">Joyería</Th>
+              {showAll ? <Th className="whitespace-nowrap">Zona</Th> : null}
               {orderedItems.map((it) => (
                 <Th key={it.id} className="whitespace-nowrap">{it.name}</Th>
               ))}
@@ -223,6 +230,7 @@ export function ZoneAssetsMatrix({
                   {s.code ? `${s.code} · ` : ''}{s.name}
                   {s.status === 'inactive' ? <span className="ml-1.5 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">Inactiva</span> : null}
                 </Td>
+                {showAll ? <Td className="whitespace-nowrap text-slate-500">{zoneNameById.get(s.zone_id ?? '') ?? '—'}</Td> : null}
                 {orderedItems.map((it) => {
                   const a = cellMap.get(`${s.id}:${it.id}`);
                   return (
