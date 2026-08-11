@@ -1,19 +1,23 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Store as StoreIcon, AlertTriangle, Wrench } from 'lucide-react';
+import { Store as StoreIcon, AlertTriangle, Wrench, Plus } from 'lucide-react';
 import { Select } from '@/components/ui/Input';
 import { Table, Thead, Th, Tr, Td, EmptyState } from '@/components/ui/Table';
 import { MetricCard } from '@/components/dashboard/MetricCard';
-import { updateAssignmentDetail } from '@/actions/inventory.actions';
+import { updateAssignmentDetail, setAssignmentStatus } from '@/actions/inventory.actions';
 import { cn, statusColor, statusLabel } from '@/lib/utils';
 import type { AppUser, InventoryAssignment, PopItem, Store, Zone } from '@/lib/types';
 
-/** Orden real de columnas, tal como en la hoja de control de activos por zona. */
-const ITEM_ORDER = ['ACR-001', 'HAB-001', 'RT-000', 'RT-001', 'RT-002', 'RT-003', 'RT-004', 'RT-005'];
+/**
+ * Orden preferente de columnas: primero los materiales que ya se controlaban
+ * (acrílicos, habladores, rompetráficos), luego el resto del catálogo
+ * (volantes, tarjetas, certificados, etc.) alfabéticamente.
+ */
+const PRIORITY_CODES = ['ACR-001', 'HAB-001', 'RT-000', 'RT-001', 'RT-002', 'RT-003', 'RT-004', 'RT-005'];
 
-/** Estados que tiene sentido asignar a un material ya instalado en una joyería. */
+/** Estados que tiene sentido asignar a un material físico en una joyería. */
 const EDITABLE_STATUSES = ['good', 'damaged', 'maintenance'] as const;
 
 function EditableStatusCell({ assignment }: { assignment: InventoryAssignment }) {
@@ -60,25 +64,93 @@ function EditableStatusCell({ assignment }: { assignment: InventoryAssignment })
   );
 }
 
+/** Celda para joyerías que todavía no "cuentan" con ese material. Solo admin puede crearla. */
+function CreateStatusCell({ storeId, popItemId, canCreate }: { storeId: string; popItemId: string; canCreate: boolean }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  if (!canCreate) {
+    return <span className="text-xs text-slate-400">No cuenta</span>;
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-brand-600"
+        title="Agregar material a esta joyería"
+      >
+        <Plus size={12} /> No cuenta
+      </button>
+    );
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const status = e.target.value;
+    if (!status) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await setAssignmentStatus({ storeId, popItemId, status });
+      if (res.error) {
+        setError(res.error);
+      } else {
+        router.refresh();
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <select
+        defaultValue=""
+        disabled={pending}
+        onChange={handleChange}
+        onBlur={() => !pending && setOpen(false)}
+        autoFocus
+        className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60"
+      >
+        <option value="" disabled>Elegir estado…</option>
+        {EDITABLE_STATUSES.map((s) => (
+          <option key={s} value={s}>
+            {statusLabel(s)}
+          </option>
+        ))}
+      </select>
+      {error ? <span className="text-[10px] text-red-600">{error}</span> : null}
+    </div>
+  );
+}
+
 export function ZoneAssetsMatrix({
   user,
   zones,
   stores,
   items,
-  assignments
+  assignments,
+  rowActions
 }: {
   user: AppUser;
   zones: Zone[];
   stores: Store[];
   items: PopItem[];
   assignments: InventoryAssignment[];
+  /** Columna extra opcional al final de cada fila (ej. editar/desactivar joyería). Solo la usa Joyerías. */
+  rowActions?: (store: Store) => ReactNode;
 }) {
   const isAdmin = user.role === 'admin';
 
-  const orderedItems = useMemo(
-    () => [...items].sort((a, b) => ITEM_ORDER.indexOf(a.internal_code) - ITEM_ORDER.indexOf(b.internal_code)),
-    [items]
-  );
+  const orderedItems = useMemo(() => {
+    const priority = items
+      .filter((i) => PRIORITY_CODES.includes(i.internal_code))
+      .sort((a, b) => PRIORITY_CODES.indexOf(a.internal_code) - PRIORITY_CODES.indexOf(b.internal_code));
+    const rest = items
+      .filter((i) => !PRIORITY_CODES.includes(i.internal_code))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return [...priority, ...rest];
+  }, [items]);
 
   const [zoneId, setZoneId] = useState(isAdmin ? zones[0]?.id ?? '' : user.zone_id ?? '');
 
@@ -141,6 +213,7 @@ export function ZoneAssetsMatrix({
               {orderedItems.map((it) => (
                 <Th key={it.id} className="whitespace-nowrap">{it.name}</Th>
               ))}
+              {rowActions ? <Th className="whitespace-nowrap">Acciones</Th> : null}
             </tr>
           </Thead>
           <tbody>
@@ -148,15 +221,21 @@ export function ZoneAssetsMatrix({
               <Tr key={s.id}>
                 <Td className="whitespace-nowrap font-medium text-brand-700">
                   {s.code ? `${s.code} · ` : ''}{s.name}
+                  {s.status === 'inactive' ? <span className="ml-1.5 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">Inactiva</span> : null}
                 </Td>
                 {orderedItems.map((it) => {
                   const a = cellMap.get(`${s.id}:${it.id}`);
                   return (
                     <Td key={it.id}>
-                      {a ? <EditableStatusCell assignment={a} /> : <span className="text-xs text-slate-400">No cuenta</span>}
+                      {a ? (
+                        <EditableStatusCell assignment={a} />
+                      ) : (
+                        <CreateStatusCell storeId={s.id} popItemId={it.id} canCreate={isAdmin} />
+                      )}
                     </Td>
                   );
                 })}
+                {rowActions ? <Td className="whitespace-nowrap">{rowActions(s)}</Td> : null}
               </Tr>
             ))}
           </tbody>

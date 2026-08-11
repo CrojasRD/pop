@@ -2,14 +2,12 @@ import { requireUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { JoyeriasPageTabs } from '@/components/joyerias/JoyeriasPageTabs';
 
-// Mismos materiales que se controlan por joyería en Inventario POP
-// (acrílicos, habladores y rompetráficos) para la vista "Control por zona".
-const ZONE_TRACKED_CODES = ['ACR-001', 'HAB-001', 'RT-000', 'RT-001', 'RT-002', 'RT-003', 'RT-004', 'RT-005'];
-
 export default async function JoyeriasPage() {
   const user = await requireUser();
   const supabase = createClient();
 
+  // El Control por zona muestra todo el catálogo de materiales POP
+  // (acrílicos, habladores, rompetráficos, volantes, tarjetas, etc.).
   const [{ data: stores }, { data: zones }, { data: managers }, { data: items }, { data: assignments }] = await Promise.all([
     supabase.from('stores').select('*, zone:zones(*), zonal_manager:users!stores_zonal_manager_id_fkey(*)').order('name'),
     supabase.from('zones').select('*').order('name'),
@@ -18,9 +16,8 @@ export default async function JoyeriasPage() {
     supabase.from('inventory_assignments').select('*')
   ]);
 
-  const zoneItems = ((items as any) ?? []).filter((i: any) => ZONE_TRACKED_CODES.includes(i.internal_code));
-  const zoneItemIds = new Set(zoneItems.map((i: any) => i.id));
-  const zoneAssignments = ((assignments as any) ?? []).filter((a: any) => zoneItemIds.has(a.pop_item_id));
+  const zoneItems = (items as any) ?? [];
+  const zoneAssignments = (assignments as any) ?? [];
 
   return (
     <div className="space-y-5">

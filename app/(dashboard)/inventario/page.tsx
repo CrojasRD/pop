@@ -5,16 +5,14 @@ import { createClient } from '@/lib/supabase/server';
 import { InventoryPageTabs } from '@/components/inventario/InventoryPageTabs';
 import { Button } from '@/components/ui/Button';
 
-// Materiales que se controlan por joyería (acrílicos, habladores y
-// rompetráficos) — son los que se muestran en la vista "Control por zona".
-const ZONE_TRACKED_CODES = ['ACR-001', 'HAB-001', 'RT-000', 'RT-001', 'RT-002', 'RT-003', 'RT-004', 'RT-005'];
-
 export default async function InventarioPage() {
   const user = await requireUser();
   const supabase = createClient();
 
   // RLS ya limita lo que cada rol puede leer; para jefe zonal el catálogo es
   // visible (para poder solicitar), pero la vista destaca solo lo asignado a su zona.
+  // La vista "Control por zona" muestra todo el catálogo (acrílicos, habladores,
+  // rompetráficos, volantes, tarjetas, etc.), no solo un subconjunto fijo.
   const [itemsRes, categoriesRes, zonesRes, storesRes, assignmentsRes] = await Promise.all([
     supabase.from('pop_items').select('*, category:pop_categories(*)').order('name'),
     supabase.from('pop_categories').select('*').order('name'),
@@ -23,9 +21,8 @@ export default async function InventarioPage() {
     supabase.from('inventory_assignments').select('*')
   ]);
 
-  const zoneItems = ((itemsRes.data as any) ?? []).filter((i: any) => ZONE_TRACKED_CODES.includes(i.internal_code));
-  const zoneItemIds = new Set(zoneItems.map((i: any) => i.id));
-  const zoneAssignments = ((assignmentsRes.data as any) ?? []).filter((a: any) => zoneItemIds.has(a.pop_item_id));
+  const zoneItems = (itemsRes.data as any) ?? [];
+  const zoneAssignments = (assignmentsRes.data as any) ?? [];
 
   return (
     <div className="space-y-5">

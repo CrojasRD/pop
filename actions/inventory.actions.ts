@@ -145,6 +145,77 @@ export async function updateAssignmentDetail(
   return { success: true };
 }
 
+/**
+ * Establece el estado de un material para una joyería desde la vista
+ * "Control por zona". Si ya existe la asignación, solo actualiza el estado
+ * (admin o jefe zonal de esa zona, según RLS). Si la joyería todavía no
+ * "cuenta" con ese material, crea la asignación — esto sí mueve stock de
+ * bodega, así que queda restringido a admin (misma regla que assign_pop_item).
+ */
+export async function setAssignmentStatus(input: {
+  storeId: string;
+  popItemId: string;
+  status: string;
+}): Promise<ActionResult & { assignmentId?: string }> {
+  const user = await requireUser();
+  const supabase = createClient();
+
+  const { data: store } = await supabase.from('stores').select('id, zone_id').eq('id', input.storeId).single();
+  if (!store) return { error: 'Joyería no encontrada' };
+  if (user.role === 'zonal_manager' && store.zone_id !== user.zone_id) {
+    return { error: 'Solo puedes modificar el inventario de tu propia zona' };
+  }
+
+  const { data: existing } = await supabase
+    .from('inventory_assignments')
+    .select('id')
+    .eq('pop_item_id', input.popItemId)
+    .eq('store_id', input.storeId)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase.from('inventory_assignments').update({ status: input.status }).eq('id', existing.id);
+    if (error) return { error: error.message };
+    await logAudit({ action: 'update', module: 'inventory_assignments', recordId: existing.id, newValue: { status: input.status } });
+    revalidatePath('/joyerias');
+    revalidatePath('/inventario');
+    return { success: true, assignmentId: existing.id };
+  }
+
+  if (user.role !== 'admin') {
+    return { error: 'Solo el administrador puede agregar este material a una joyería que aún no lo tiene' };
+  }
+
+  const { data: item } = await supabase.from('pop_items').select('id, warehouse_quantity, assigned_quantity').eq('id', input.popItemId).single();
+  if (!item) return { error: 'Material no encontrado' };
+  if (item.warehouse_quantity < 1) return { error: 'No hay stock en bodega para asignar este material' };
+
+  const { data: created, error } = await supabase
+    .from('inventory_assignments')
+    .insert({
+      pop_item_id: input.popItemId,
+      store_id: input.storeId,
+      zone_id: store.zone_id,
+      assigned_quantity: 1,
+      status: input.status,
+      notes: 'Registrado desde Control por zona',
+      created_by: user.id
+    })
+    .select('id')
+    .single();
+  if (error) return { error: error.message };
+
+  await supabase
+    .from('pop_items')
+    .update({ warehouse_quantity: item.warehouse_quantity - 1, assigned_quantity: item.assigned_quantity + 1 })
+    .eq('id', input.popItemId);
+
+  await logAudit({ action: 'create', module: 'inventory_assignments', recordId: created.id, newValue: { status: input.status } });
+  revalidatePath('/joyerias');
+  revalidatePath('/inventario');
+  return { success: true, assignmentId: created.id };
+}
+
 export async function returnPopItem(input: { assignmentId: string; quantity: number; notes?: string }): Promise<ActionResult> {
   await requireAdmin();
   const supabase = createClient();
