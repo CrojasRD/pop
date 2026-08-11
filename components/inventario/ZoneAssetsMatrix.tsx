@@ -1,15 +1,64 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Store as StoreIcon, AlertTriangle, Wrench } from 'lucide-react';
-import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Input';
 import { Table, Thead, Th, Tr, Td, EmptyState } from '@/components/ui/Table';
 import { MetricCard } from '@/components/dashboard/MetricCard';
+import { updateAssignmentDetail } from '@/actions/inventory.actions';
+import { cn, statusColor, statusLabel } from '@/lib/utils';
 import type { AppUser, InventoryAssignment, PopItem, Store, Zone } from '@/lib/types';
 
 /** Orden real de columnas, tal como en la hoja de control de activos por zona. */
 const ITEM_ORDER = ['ACR-001', 'HAB-001', 'RT-000', 'RT-001', 'RT-002', 'RT-003', 'RT-004', 'RT-005'];
+
+/** Estados que tiene sentido asignar a un material ya instalado en una joyería. */
+const EDITABLE_STATUSES = ['good', 'damaged', 'maintenance'] as const;
+
+function EditableStatusCell({ assignment }: { assignment: InventoryAssignment }) {
+  const router = useRouter();
+  const [status, setStatus] = useState<string>(assignment.status);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const next = e.target.value;
+    const prev = status;
+    setStatus(next);
+    setError(null);
+    startTransition(async () => {
+      const res = await updateAssignmentDetail(assignment.id, { status: next });
+      if (res.error) {
+        setStatus(prev);
+        setError(res.error);
+      } else {
+        router.refresh();
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <select
+        value={status}
+        disabled={pending}
+        onChange={handleChange}
+        className={cn(
+          'appearance-none rounded-full border-0 px-2.5 py-0.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60',
+          statusColor(status)
+        )}
+      >
+        {EDITABLE_STATUSES.map((s) => (
+          <option key={s} value={s}>
+            {statusLabel(s)}
+          </option>
+        ))}
+      </select>
+      {error ? <span className="text-[10px] text-red-600">{error}</span> : null}
+    </div>
+  );
+}
 
 export function ZoneAssetsMatrix({
   user,
@@ -104,7 +153,7 @@ export function ZoneAssetsMatrix({
                   const a = cellMap.get(`${s.id}:${it.id}`);
                   return (
                     <Td key={it.id}>
-                      {a ? <Badge status={a.status} /> : <span className="text-xs text-slate-400">No cuenta</span>}
+                      {a ? <EditableStatusCell assignment={a} /> : <span className="text-xs text-slate-400">No cuenta</span>}
                     </Td>
                   );
                 })}
