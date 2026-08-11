@@ -2,8 +2,12 @@ import Link from 'next/link';
 import { Plus, Upload } from 'lucide-react';
 import { requireUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
-import { InventoryTable } from '@/components/inventario/InventoryTable';
+import { InventoryPageTabs } from '@/components/inventario/InventoryPageTabs';
 import { Button } from '@/components/ui/Button';
+
+// Materiales que se controlan por joyería (acrílicos, habladores y
+// rompetráficos) — son los que se muestran en la vista "Control por zona".
+const ZONE_TRACKED_CODES = ['ACR-001', 'HAB-001', 'RT-000', 'RT-001', 'RT-002', 'RT-003', 'RT-004', 'RT-005'];
 
 export default async function InventarioPage() {
   const user = await requireUser();
@@ -11,10 +15,17 @@ export default async function InventarioPage() {
 
   // RLS ya limita lo que cada rol puede leer; para jefe zonal el catálogo es
   // visible (para poder solicitar), pero la vista destaca solo lo asignado a su zona.
-  const [itemsRes, categoriesRes] = await Promise.all([
+  const [itemsRes, categoriesRes, zonesRes, storesRes, assignmentsRes] = await Promise.all([
     supabase.from('pop_items').select('*, category:pop_categories(*)').order('name'),
-    supabase.from('pop_categories').select('*').order('name')
+    supabase.from('pop_categories').select('*').order('name'),
+    supabase.from('zones').select('*').order('name'),
+    supabase.from('stores').select('*').eq('status', 'active').order('name'),
+    supabase.from('inventory_assignments').select('*')
   ]);
+
+  const zoneItems = ((itemsRes.data as any) ?? []).filter((i: any) => ZONE_TRACKED_CODES.includes(i.internal_code));
+  const zoneItemIds = new Set(zoneItems.map((i: any) => i.id));
+  const zoneAssignments = ((assignmentsRes.data as any) ?? []).filter((a: any) => zoneItemIds.has(a.pop_item_id));
 
   return (
     <div className="space-y-5">
@@ -37,7 +48,16 @@ export default async function InventarioPage() {
         ) : null}
       </div>
 
-      <InventoryTable items={(itemsRes.data as any) ?? []} categories={(categoriesRes.data as any) ?? []} isAdmin={user.role === 'admin'} />
+      <InventoryPageTabs
+        user={user}
+        items={(itemsRes.data as any) ?? []}
+        categories={(categoriesRes.data as any) ?? []}
+        zones={(zonesRes.data as any) ?? []}
+        stores={(storesRes.data as any) ?? []}
+        zoneItems={zoneItems}
+        assignments={zoneAssignments}
+        isAdmin={user.role === 'admin'}
+      />
     </div>
   );
 }
