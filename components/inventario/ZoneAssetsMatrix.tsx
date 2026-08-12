@@ -228,9 +228,9 @@ export function ZoneAssetsMatrix({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         {isAdmin ? (
-          <Select value={zoneId} onChange={(e) => setZoneId(e.target.value)} className="w-64">
+          <Select value={zoneId} onChange={(e) => setZoneId(e.target.value)} className="w-full sm:w-64">
             <option value="all">Todas las zonas</option>
             {zones.map((z) => (
               <option key={z.id} value={z.id}>{z.name}</option>
@@ -240,7 +240,7 @@ export function ZoneAssetsMatrix({
           <p className="text-sm font-medium text-slate-700">{currentZone?.name ?? 'Tu zona'}</p>
         )}
 
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar joyería o código…" className="pl-8" />
         </div>
@@ -257,20 +257,20 @@ export function ZoneAssetsMatrix({
       {zoneStores.length === 0 ? (
         <EmptyState message={showAll ? 'No hay joyerías registradas.' : 'No hay joyerías registradas en esta zona.'} />
       ) : (
-        <div className="max-h-[72vh] overflow-auto rounded-xl border border-slate-200">
+        <div className="max-h-[65vh] overflow-auto rounded-xl border border-slate-200 sm:max-h-[72vh]">
           <table className="w-full min-w-max border-collapse text-left text-sm">
             <thead className="text-slate-500">
               <tr>
                 <th
                   rowSpan={2}
-                  className="sticky left-0 top-0 z-30 min-w-[190px] whitespace-nowrap border-b border-r border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500"
+                  className="sticky left-0 top-0 z-30 min-w-[130px] whitespace-nowrap border-b border-r border-slate-200 bg-slate-50 px-2 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:min-w-[190px] sm:px-3"
                 >
                   Joyería
                 </th>
                 {showAll ? (
                   <th
                     rowSpan={2}
-                    className="sticky top-0 z-20 min-w-[130px] whitespace-nowrap border-b border-r border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500"
+                    className="sticky top-0 z-20 min-w-[100px] whitespace-nowrap border-b border-r border-slate-200 bg-slate-50 px-2 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:min-w-[130px] sm:px-3"
                   >
                     Zona
                   </th>
@@ -299,7 +299,7 @@ export function ZoneAssetsMatrix({
                   <th
                     key={it.id}
                     title={it.name}
-                    className="sticky z-20 w-[92px] border-b border-r border-slate-100 bg-slate-50 px-1.5 py-1.5 text-center text-[10.5px] font-medium leading-tight text-slate-500"
+                    className="sticky z-20 w-[74px] border-b border-r border-slate-100 bg-slate-50 px-1 py-1.5 text-center text-[10.5px] font-medium leading-tight text-slate-500 sm:w-[92px] sm:px-1.5"
                     style={{ top: HEADER_ROW1_H, height: HEADER_ROW2_H }}
                   >
                     {it.name}
@@ -312,7 +312,7 @@ export function ZoneAssetsMatrix({
                 <tr key={s.id} className={cn('border-t border-slate-100 hover:bg-brand-50/40', rowIndex % 2 === 1 && 'bg-slate-50/50')}>
                   <td
                     className={cn(
-                      'sticky left-0 z-10 whitespace-nowrap border-r border-slate-200 px-3 py-2 font-medium text-brand-700',
+                      'sticky left-0 z-10 truncate whitespace-nowrap border-r border-slate-200 px-2 py-2 text-xs font-medium text-brand-700 sm:px-3 sm:text-sm',
                       rowIndex % 2 === 1 ? 'bg-slate-50' : 'bg-white'
                     )}
                   >
@@ -320,7 +320,7 @@ export function ZoneAssetsMatrix({
                     {s.status === 'inactive' ? <span className="ml-1.5 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">Inactiva</span> : null}
                   </td>
                   {showAll ? (
-                    <td className="whitespace-nowrap border-r border-slate-100 px-3 py-2 text-slate-500">
+                    <td className="whitespace-nowrap border-r border-slate-100 px-2 py-2 text-xs text-slate-500 sm:px-3 sm:text-sm">
                       {zoneNameById.get(s.zone_id ?? '') ?? '—'}
                     </td>
                   ) : null}
