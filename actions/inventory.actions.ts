@@ -109,11 +109,12 @@ export async function assignPopItemToStore(input: {
 
 /**
  * Actualiza el estado físico y/o la cantidad registrada de un material ya
- * asignado a una joyería (ej. "tenemos 15, no 20" o "está dañado"). A
- * diferencia de assignPopItemToStore/returnPopItem, esto NO mueve stock de
- * bodega ni recalcula los agregados de pop_items — es una corrección del
- * registro en campo. Lo puede hacer el administrador o el jefe zonal de la
- * zona de esa joyería (reforzado también por RLS).
+ * asignado a una joyería (ej. "tenemos 15, no 20" o "está dañado"). Es una
+ * corrección del registro en campo, no un movimiento formal de bodega
+ * (para eso existen assignPopItemToStore/returnPopItem). Si cambia
+ * assigned_quantity, el agregado de pop_items se recalcula solo (trigger
+ * trg_sync_pop_item_assigned). Lo puede hacer el administrador o el jefe
+ * zonal de la zona de esa joyería (reforzado también por RLS).
  */
 export async function updateAssignmentDetail(
   assignmentId: string,
@@ -186,10 +187,13 @@ export async function setAssignmentStatus(input: {
     return { error: 'Solo el administrador puede agregar este material a una joyería que aún no lo tiene' };
   }
 
-  const { data: item } = await supabase.from('pop_items').select('id, warehouse_quantity, assigned_quantity').eq('id', input.popItemId).single();
+  const { data: item } = await supabase.from('pop_items').select('id, warehouse_quantity').eq('id', input.popItemId).single();
   if (!item) return { error: 'Material no encontrado' };
   if (item.warehouse_quantity < 1) return { error: 'No hay stock en bodega para asignar este material' };
 
+  // pop_items.assigned_quantity y warehouse_quantity se recalculan solos
+  // (trigger trg_sync_pop_item_assigned / trg_sync_pop_item_warehouse) al
+  // insertar esta fila — no hace falta actualizarlos aquí a mano.
   const { data: created, error } = await supabase
     .from('inventory_assignments')
     .insert({
@@ -204,11 +208,6 @@ export async function setAssignmentStatus(input: {
     .select('id')
     .single();
   if (error) return { error: error.message };
-
-  await supabase
-    .from('pop_items')
-    .update({ warehouse_quantity: item.warehouse_quantity - 1, assigned_quantity: item.assigned_quantity + 1 })
-    .eq('id', input.popItemId);
 
   await logAudit({ action: 'create', module: 'inventory_assignments', recordId: created.id, newValue: { status: input.status } });
   revalidatePath('/joyerias');

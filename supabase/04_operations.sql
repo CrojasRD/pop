@@ -29,14 +29,11 @@ begin
 
   select zone_id into v_zone_id from public.stores where id = p_store_id;
 
+  -- pop_items.assigned_quantity y warehouse_quantity se recalculan solos
+  -- (ver 07_triggers.sql) al insertar esta fila — no se tocan a mano aquí.
   insert into public.inventory_assignments (pop_item_id, store_id, zone_id, assigned_quantity, delivery_date, status, notes, created_by)
   values (p_pop_item_id, p_store_id, v_zone_id, p_quantity, p_delivery_date, 'in_stock', p_notes, auth.uid())
   returning id into v_assignment_id;
-
-  update public.pop_items
-    set warehouse_quantity = warehouse_quantity - p_quantity,
-        assigned_quantity = assigned_quantity + p_quantity
-    where id = p_pop_item_id;
 
   insert into public.inventory_movements (pop_item_id, store_id, assignment_id, movement_type, quantity, previous_quantity, new_quantity, notes, created_by)
   values (p_pop_item_id, p_store_id, v_assignment_id, 'delivery', p_quantity, v_item.warehouse_quantity, v_item.warehouse_quantity - p_quantity, p_notes, auth.uid());
@@ -71,17 +68,14 @@ begin
 
   select * into v_item from public.pop_items where id = v_assignment.pop_item_id for update;
 
+  -- pop_items.assigned_quantity y warehouse_quantity se recalculan solos
+  -- (ver 07_triggers.sql) al actualizar esta fila — no se tocan a mano aquí.
   update public.inventory_assignments
     set assigned_quantity = assigned_quantity - p_quantity,
         return_date = current_date,
         status = case when assigned_quantity - p_quantity <= 0 then 'out_of_stock' else status end,
         notes = coalesce(p_notes, notes)
     where id = p_assignment_id;
-
-  update public.pop_items
-    set warehouse_quantity = warehouse_quantity + p_quantity,
-        assigned_quantity = assigned_quantity - p_quantity
-    where id = v_item.id;
 
   insert into public.inventory_movements (pop_item_id, store_id, assignment_id, movement_type, quantity, previous_quantity, new_quantity, notes, created_by)
   values (v_item.id, v_assignment.store_id, p_assignment_id, 'return', p_quantity, v_item.warehouse_quantity, v_item.warehouse_quantity + p_quantity, p_notes, auth.uid());
