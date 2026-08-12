@@ -6,7 +6,7 @@ import { Store as StoreIcon, AlertTriangle, Wrench, Plus, Search } from 'lucide-
 import { Select, Input } from '@/components/ui/Input';
 import { EmptyState } from '@/components/ui/Table';
 import { MetricCard } from '@/components/dashboard/MetricCard';
-import { updateAssignmentDetail, setAssignmentStatus } from '@/actions/inventory.actions';
+import { updateAssignmentDetail, setAssignmentStatus, setAssignmentQuantity } from '@/actions/inventory.actions';
 import { cn, statusColor, statusLabel } from '@/lib/utils';
 import type { AppUser, InventoryAssignment, PopItem, Store, Zone } from '@/lib/types';
 
@@ -19,6 +19,13 @@ const PRIORITY_CODES = ['ACR-001', 'HAB-001', 'RT-000', 'RT-001', 'RT-002', 'RT-
 
 /** Estados que tiene sentido asignar a un material físico en una joyería. */
 const EDITABLE_STATUSES = ['good', 'damaged', 'maintenance'] as const;
+
+/**
+ * Categorías de material de consumo (no tienen un "estado" físico como
+ * dañado/en mantenimiento — lo que importa es cuánto se entregó). Para
+ * estas, la matriz muestra un campo numérico en vez del selector de estado.
+ */
+const QUANTITY_CATEGORIES = new Set(['Certificados', 'Dípticos', 'Sobres', 'Tarjetas', 'Volantes']);
 
 const HEADER_ROW1_H = 24; // px — fila de categoría
 const HEADER_ROW2_H = 44; // px — fila de nombre de material
@@ -122,6 +129,119 @@ function CreateStatusCell({ storeId, popItemId, canCreate }: { storeId: string; 
           </option>
         ))}
       </select>
+      {error ? <span className="text-[10px] text-red-600">{error}</span> : null}
+    </div>
+  );
+}
+
+/** Celda numérica para materiales de consumo (volantes, tarjetas, certificados, dípticos, sobres). */
+function EditableQuantityCell({ assignment }: { assignment: InventoryAssignment }) {
+  const router = useRouter();
+  const [value, setValue] = useState(String(assignment.assigned_quantity));
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function commit() {
+    const n = Number(value);
+    if (value.trim() === '' || !Number.isInteger(n) || n < 0) {
+      setValue(String(assignment.assigned_quantity));
+      setError('Cantidad inválida');
+      return;
+    }
+    if (n === assignment.assigned_quantity) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await updateAssignmentDetail(assignment.id, { assigned_quantity: n });
+      if (res.error) {
+        setValue(String(assignment.assigned_quantity));
+        setError(res.error);
+      } else {
+        router.refresh();
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <input
+        type="number"
+        min={0}
+        step={1}
+        inputMode="numeric"
+        value={value}
+        disabled={pending}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        className="w-12 rounded-md border border-slate-200 bg-white px-1 py-1 text-center text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60 sm:w-14"
+      />
+      {error ? <span className="text-[10px] text-red-600">{error}</span> : null}
+    </div>
+  );
+}
+
+/** Igual que CreateStatusCell pero pide una cantidad en vez de un estado. Solo admin puede crearla. */
+function CreateQuantityCell({ storeId, popItemId, canCreate }: { storeId: string; popItemId: string; canCreate: boolean }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  if (!canCreate) {
+    return <span className="text-[11px] text-slate-300">—</span>;
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mx-auto flex items-center justify-center gap-0.5 rounded-full border border-dashed border-slate-300 px-2 py-1 text-[10px] text-slate-400 hover:border-brand-400 hover:text-brand-600"
+        title="Registrar cantidad entregada"
+      >
+        <Plus size={10} />
+      </button>
+    );
+  }
+
+  function commit() {
+    const n = Number(value);
+    if (value.trim() === '' || !Number.isInteger(n) || n <= 0) {
+      setError('Ingresa una cantidad válida');
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await setAssignmentQuantity({ storeId, popItemId, quantity: n });
+      if (res.error) {
+        setError(res.error);
+      } else {
+        router.refresh();
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <input
+        type="number"
+        min={1}
+        step={1}
+        autoFocus
+        inputMode="numeric"
+        placeholder="0"
+        value={value}
+        disabled={pending}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => {
+          if (pending) return;
+          if (!value.trim()) setOpen(false);
+          else commit();
+        }}
+        onKeyDown={(e) => e.key === 'Enter' && commit()}
+        className="w-12 rounded-md border border-slate-300 bg-white px-1 py-1 text-center text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60 sm:w-14"
+      />
       {error ? <span className="text-[10px] text-red-600">{error}</span> : null}
     </div>
   );
@@ -252,7 +372,12 @@ export function ZoneAssetsMatrix({
         <MetricCard label="Activos dañados" value={totalDamaged} icon={Wrench} tone={totalDamaged > 0 ? 'warning' : 'default'} />
       </div>
 
-      <StatusLegend />
+      <div className="flex flex-col gap-1">
+        <StatusLegend />
+        <p className="text-xs text-slate-400">
+          Certificados, Dípticos, Sobres, Tarjetas y Volantes se registran como cantidad entregada, no como estado.
+        </p>
+      </div>
 
       {zoneStores.length === 0 ? (
         <EmptyState message={showAll ? 'No hay joyerías registradas.' : 'No hay joyerías registradas en esta zona.'} />
@@ -326,10 +451,17 @@ export function ZoneAssetsMatrix({
                   ) : null}
                   {orderedItems.map((it) => {
                     const a = cellMap.get(`${s.id}:${it.id}`);
+                    const isQuantityItem = QUANTITY_CATEGORIES.has(it.category?.name ?? '');
                     return (
                       <td key={it.id} className="border-r border-slate-100 px-1 py-1.5 text-center">
                         {a ? (
-                          <EditableStatusCell assignment={a} />
+                          isQuantityItem ? (
+                            <EditableQuantityCell assignment={a} />
+                          ) : (
+                            <EditableStatusCell assignment={a} />
+                          )
+                        ) : isQuantityItem ? (
+                          <CreateQuantityCell storeId={s.id} popItemId={it.id} canCreate={isAdmin} />
                         ) : (
                           <CreateStatusCell storeId={s.id} popItemId={it.id} canCreate={isAdmin} />
                         )}
