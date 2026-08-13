@@ -25,7 +25,18 @@ const EDITABLE_STATUSES = ['good', 'damaged', 'maintenance'] as const;
  * dañado/en mantenimiento — lo que importa es cuánto se entregó). Para
  * estas, la matriz muestra un campo numérico en vez del selector de estado.
  */
-const QUANTITY_CATEGORIES = new Set(['Certificados', 'Dípticos', 'Sobres', 'Tarjetas', 'Volantes']);
+export const QUANTITY_CATEGORIES = new Set(['Certificados', 'Dípticos', 'Sobres', 'Tarjetas', 'Volantes']);
+
+/** Mismo orden de columnas que usa la matriz: prioritarios primero, luego el resto alfabético. */
+export function orderZoneItems(items: PopItem[]): PopItem[] {
+  const priority = items
+    .filter((i) => PRIORITY_CODES.includes(i.internal_code))
+    .sort((a, b) => PRIORITY_CODES.indexOf(a.internal_code) - PRIORITY_CODES.indexOf(b.internal_code));
+  const rest = items
+    .filter((i) => !PRIORITY_CODES.includes(i.internal_code))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return [...priority, ...rest];
+}
 
 const HEADER_ROW1_H = 24; // px — fila de categoría
 const HEADER_ROW2_H = 44; // px — fila de nombre de material
@@ -282,15 +293,7 @@ export function ZoneAssetsMatrix({
 }) {
   const isAdmin = user.role === 'admin';
 
-  const orderedItems = useMemo(() => {
-    const priority = items
-      .filter((i) => PRIORITY_CODES.includes(i.internal_code))
-      .sort((a, b) => PRIORITY_CODES.indexOf(a.internal_code) - PRIORITY_CODES.indexOf(b.internal_code));
-    const rest = items
-      .filter((i) => !PRIORITY_CODES.includes(i.internal_code))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    return [...priority, ...rest];
-  }, [items]);
+  const orderedItems = useMemo(() => orderZoneItems(items), [items]);
 
   // Agrupa columnas consecutivas por categoría para un encabezado de dos niveles.
   const categoryGroups = useMemo(() => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Pencil, Power, Upload } from 'lucide-react';
@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/Button';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { StoreFormDialog } from './StoreFormDialog';
-import { ZoneAssetsMatrix } from '@/components/inventario/ZoneAssetsMatrix';
+import { ZoneAssetsMatrix, QUANTITY_CATEGORIES, orderZoneItems } from '@/components/inventario/ZoneAssetsMatrix';
 import { toggleStoreStatus } from '@/actions/stores.actions';
+import { statusLabel } from '@/lib/utils';
 import type { AppUser, InventoryAssignment, PopItem, Store, Zone } from '@/lib/types';
 
 export function JoyeriasPageTabs({
@@ -33,18 +34,41 @@ export function JoyeriasPageTabs({
   const [editing, setEditing] = useState<Store | null | undefined>(undefined);
   const [toggleTarget, setToggleTarget] = useState<Store | null>(null);
 
-  const exportRows = stores.map((s) => ({
-    Código: s.code ?? '',
-    Nombre: s.name,
-    Ciudad: s.city,
-    Provincia: s.province,
-    Zona: s.zone?.name ?? '',
-    'Jefe zonal': s.zonal_manager?.full_name ?? '',
-    Correo: s.email ?? '',
-    Teléfono: s.phone ?? '',
-    Compañía: s.company ?? '',
-    Estado: s.status
-  }));
+  const orderedZoneItems = useMemo(() => orderZoneItems(zoneItems), [zoneItems]);
+
+  const assignmentByKey = useMemo(() => {
+    const map = new Map<string, InventoryAssignment>();
+    for (const a of assignments) map.set(`${a.store_id}:${a.pop_item_id}`, a);
+    return map;
+  }, [assignments]);
+
+  const exportRows = stores.map((s) => {
+    const materialColumns: Record<string, string | number> = {};
+    for (const it of orderedZoneItems) {
+      const a = assignmentByKey.get(`${s.id}:${it.id}`);
+      const isQuantityItem = QUANTITY_CATEGORIES.has(it.category?.name ?? '');
+      materialColumns[it.name] = a
+        ? isQuantityItem
+          ? a.assigned_quantity
+          : statusLabel(a.status)
+        : isQuantityItem
+          ? 0
+          : 'No cuenta';
+    }
+    return {
+      Código: s.code ?? '',
+      Nombre: s.name,
+      Ciudad: s.city,
+      Provincia: s.province,
+      Zona: s.zone?.name ?? '',
+      'Jefe zonal': s.zonal_manager?.full_name ?? '',
+      Correo: s.email ?? '',
+      Teléfono: s.phone ?? '',
+      Compañía: s.company ?? '',
+      Estado: s.status,
+      ...materialColumns
+    };
+  });
 
   async function confirmToggle() {
     if (!toggleTarget) return;
