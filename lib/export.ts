@@ -24,21 +24,34 @@ export function exportToCsv(rows: Record<string, unknown>[], fileName: string) {
 }
 
 /** Exporta un arreglo de objetos a PDF tabular (encabezados = llaves del primer objeto). */
-export function exportToPdf(rows: Record<string, unknown>[], fileName: string, title: string) {
-  const doc = new jsPDF({ orientation: 'landscape' });
+export function exportToPdf(
+  rows: Record<string, unknown>[],
+  fileName: string,
+  title: string,
+  options?: { format?: 'a4' | 'a3'; fontSize?: number; legend?: string }
+) {
+  const doc = new jsPDF({ orientation: 'landscape', format: options?.format ?? 'a4' });
   doc.setFontSize(14);
   doc.text(title, 14, 15);
   doc.setFontSize(9);
   doc.text(`Generado: ${new Date().toLocaleString('es-EC')}`, 14, 21);
 
+  let startY = 26;
+  if (options?.legend) {
+    doc.setFontSize(7);
+    const legendLines = doc.splitTextToSize(options.legend, doc.internal.pageSize.getWidth() - 28);
+    doc.text(legendLines, 14, startY);
+    startY += legendLines.length * 3.2 + 3;
+  }
+
   const headers = rows.length ? Object.keys(rows[0]) : [];
   const body = rows.map((row) => headers.map((h) => String(row[h] ?? '')));
 
   autoTable(doc, {
-    startY: 26,
+    startY,
     head: [headers],
     body,
-    styles: { fontSize: 8 },
+    styles: { fontSize: options?.fontSize ?? 8, overflow: 'linebreak' },
     headStyles: { fillColor: [37, 82, 144] }
   });
 

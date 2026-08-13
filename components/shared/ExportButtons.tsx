@@ -7,11 +7,16 @@ import { exportToExcel, exportToCsv, exportToPdf } from '@/lib/export';
 export function ExportButtons({
   rows,
   fileName,
-  title
+  title,
+  pdfRows,
+  pdfOptions
 }: {
   rows: Record<string, unknown>[];
   fileName: string;
   title: string;
+  /** Filas alternativas solo para el PDF (por defecto usa `rows`). Útil cuando la tabla tiene demasiadas columnas para caber legible en una página. */
+  pdfRows?: Record<string, unknown>[];
+  pdfOptions?: { format?: 'a4' | 'a3'; fontSize?: number; legend?: string };
 }) {
   return (
     <div className="flex gap-2">
@@ -21,7 +26,7 @@ export function ExportButtons({
       <Button variant="outline" size="sm" onClick={() => exportToCsv(rows, fileName)}>
         <FileDown size={14} /> CSV
       </Button>
-      <Button variant="outline" size="sm" onClick={() => exportToPdf(rows, fileName, title)}>
+      <Button variant="outline" size="sm" onClick={() => exportToPdf(pdfRows ?? rows, fileName, title, pdfOptions)}>
         <FileText size={14} /> PDF
       </Button>
     </div>

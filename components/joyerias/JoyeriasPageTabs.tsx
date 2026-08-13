@@ -70,6 +70,33 @@ export function JoyeriasPageTabs({
     };
   });
 
+  // El PDF no tiene espacio para 26+ columnas legibles: para esa versión se
+  // recortan los datos de la joyería a lo esencial y los materiales usan su
+  // código corto (ej. ACR-001) en vez del nombre completo, con una leyenda.
+  const pdfExportRows = stores.map((s) => {
+    const materialColumns: Record<string, string | number> = {};
+    for (const it of orderedZoneItems) {
+      const a = assignmentByKey.get(`${s.id}:${it.id}`);
+      const isQuantityItem = QUANTITY_CATEGORIES.has(it.category?.name ?? '');
+      materialColumns[it.internal_code] = a
+        ? isQuantityItem
+          ? a.assigned_quantity
+          : statusLabel(a.status)
+        : isQuantityItem
+          ? 0
+          : 'No cuenta';
+    }
+    return {
+      Código: s.code ?? '',
+      Joyería: s.name,
+      Zona: s.zone?.name ?? '',
+      Estado: s.status,
+      ...materialColumns
+    };
+  });
+
+  const materialsLegend = orderedZoneItems.map((it) => `${it.internal_code}: ${it.name}`).join('   ·   ');
+
   async function confirmToggle() {
     if (!toggleTarget) return;
     await toggleStoreStatus(toggleTarget.id, toggleTarget.status === 'active' ? 'inactive' : 'active');
@@ -81,7 +108,13 @@ export function JoyeriasPageTabs({
     <div className="space-y-4">
       {isAdmin ? (
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <ExportButtons rows={exportRows} fileName="joyerias" title="Joyerías - Orocash" />
+          <ExportButtons
+            rows={exportRows}
+            pdfRows={pdfExportRows}
+            pdfOptions={{ format: 'a3', fontSize: 7, legend: materialsLegend }}
+            fileName="joyerias"
+            title="Joyerías - Orocash"
+          />
           <Link href="/joyerias/carga-masiva">
             <Button size="sm" variant="outline"><Upload size={14} /> Carga masiva</Button>
           </Link>
