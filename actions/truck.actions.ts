@@ -71,3 +71,23 @@ export async function deleteTruckStop(id: string): Promise<ActionResult> {
   revalidatePath('/camion');
   return { success: true };
 }
+
+export async function bulkDeleteTruckStops(ids: string[]): Promise<ActionResult & { deletedCount?: number }> {
+  await requireAdmin();
+  if (!ids.length) return { error: 'No hay actividades seleccionadas' };
+
+  const supabase = createClient();
+  // Sin `.select()`, Supabase/RLS no informa si el delete realmente afectó
+  // alguna fila — pedimos las filas eliminadas para poder detectarlo.
+  const { error, data } = await supabase.from('truck_schedule').delete().in('id', ids).select('id');
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: 'No se pudo eliminar ninguna actividad. Verifica que tengas permisos de administrador.' };
+  }
+
+  for (const row of data) {
+    await logAudit({ action: 'delete', module: 'truck_schedule', recordId: row.id });
+  }
+  revalidatePath('/camion');
+  return { success: true, deletedCount: data.length };
+}

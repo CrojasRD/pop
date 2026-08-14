@@ -12,7 +12,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import { TruckCalendar, computeTruckDisplayStatus } from './TruckCalendar';
 import { formatDate } from '@/lib/utils';
-import { createTruckStop, updateTruckStop, cancelTruckStop, deleteTruckStop } from '@/actions/truck.actions';
+import { createTruckStop, updateTruckStop, cancelTruckStop, deleteTruckStop, bulkDeleteTruckStops } from '@/actions/truck.actions';
 import type { AppUser, TruckStop, Zone } from '@/lib/types';
 
 export function TruckScheduleView({
@@ -35,6 +35,11 @@ export function TruckScheduleView({
   const [deleteTarget, setDeleteTarget] = useState<TruckStop | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
 
   const filtered = useMemo(
     () => stops.filter((s) => zoneFilter === 'all' || s.zone_id === zoneFilter),
@@ -84,6 +89,45 @@ export function TruckScheduleView({
     router.refresh();
   }
 
+  const allFilteredSelected = filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id));
+  const selectedCount = selectedIds.size;
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllFiltered() {
+    setSelectedIds((prev) => {
+      if (allFilteredSelected) {
+        const next = new Set(prev);
+        filtered.forEach((s) => next.delete(s.id));
+        return next;
+      }
+      const next = new Set(prev);
+      filtered.forEach((s) => next.add(s.id));
+      return next;
+    });
+  }
+
+  async function handleBulkDelete() {
+    setBulkDeleting(true);
+    setBulkError(null);
+    const result = await bulkDeleteTruckStops(Array.from(selectedIds));
+    setBulkDeleting(false);
+    if (result.error) {
+      setBulkError(result.error);
+      return;
+    }
+    setBulkDeleteOpen(false);
+    setSelectedIds(new Set());
+    router.refresh();
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -118,6 +162,17 @@ export function TruckScheduleView({
         </Select>
       ) : null}
 
+      {view === 'list' && isAdmin && selectedCount > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-xs">
+          <span className="font-medium text-slate-700">{selectedCount} seleccionada{selectedCount === 1 ? '' : 's'}</span>
+          <Button size="sm" variant="danger" onClick={() => { setBulkDeleteOpen(true); setBulkError(null); }} disabled={bulkDeleting}>
+            Eliminar seleccionadas
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Cancelar selección</Button>
+          {bulkError ? <span className="text-red-600">{bulkError}</span> : null}
+        </div>
+      ) : null}
+
       {view === 'calendar' ? (
         <TruckCalendar stops={filtered} onSelect={setSelected} />
       ) : filtered.length === 0 ? (
@@ -126,6 +181,11 @@ export function TruckScheduleView({
         <Table>
           <Thead>
             <tr>
+              {isAdmin ? (
+                <Th className="w-8">
+                  <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAllFiltered} onClick={(ev) => ev.stopPropagation()} />
+                </Th>
+              ) : null}
               <Th>Zona</Th>
               <Th>Actividad</Th>
               <Th>Fechas</Th>
@@ -136,6 +196,11 @@ export function TruckScheduleView({
           <tbody>
             {filtered.map((s) => (
               <Tr key={s.id} className="cursor-pointer" onClick={() => setSelected(s)}>
+                {isAdmin ? (
+                  <Td onClick={(ev) => ev.stopPropagation()}>
+                    <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} />
+                  </Td>
+                ) : null}
                 <Td>{s.zone?.name ?? '—'}</Td>
                 <Td className="font-medium text-brand-700">{s.activity_name}</Td>
                 <Td>{formatDate(s.start_date)} – {formatDate(s.end_date)}</Td>
@@ -222,6 +287,17 @@ export function TruckScheduleView({
         description={`¿Confirmas eliminar "${deleteTarget?.activity_name}" del cronograma? Esta acción no se puede deshacer.`}
         confirmLabel="Eliminar"
         danger
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onClose={() => { setBulkDeleteOpen(false); setBulkError(null); }}
+        onConfirm={handleBulkDelete}
+        title="Eliminar actividades seleccionadas"
+        description={`¿Confirmas eliminar ${selectedCount} actividad${selectedCount === 1 ? '' : 'es'} del cronograma? Esta acción no se puede deshacer.`}
+        confirmLabel={bulkDeleting ? 'Eliminando…' : 'Eliminar'}
+        danger
+        error={bulkError}
       />
     </div>
   );
