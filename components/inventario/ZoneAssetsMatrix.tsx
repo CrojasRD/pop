@@ -85,16 +85,12 @@ function EditableStatusCell({ assignment }: { assignment: InventoryAssignment })
   );
 }
 
-/** Celda para joyerías que todavía no "cuentan" con ese material. Solo admin puede crearla. */
-function CreateStatusCell({ storeId, popItemId, canCreate }: { storeId: string; popItemId: string; canCreate: boolean }) {
+/** Celda para joyerías que todavía no "cuentan" con ese material (admin o jefe zonal de esa joyería). */
+function CreateStatusCell({ storeId, popItemId }: { storeId: string; popItemId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-
-  if (!canCreate) {
-    return <span className="text-[11px] text-slate-300">—</span>;
-  }
 
   if (!open) {
     return (
@@ -191,17 +187,13 @@ function EditableQuantityCell({ assignment }: { assignment: InventoryAssignment 
   );
 }
 
-/** Igual que CreateStatusCell pero pide una cantidad en vez de un estado. Solo admin puede crearla. */
-function CreateQuantityCell({ storeId, popItemId, canCreate }: { storeId: string; popItemId: string; canCreate: boolean }) {
+/** Igual que CreateStatusCell pero pide una cantidad en vez de un estado. */
+function CreateQuantityCell({ storeId, popItemId }: { storeId: string; popItemId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-
-  if (!canCreate) {
-    return <span className="text-[11px] text-slate-300">—</span>;
-  }
 
   if (!open) {
     return (
@@ -464,9 +456,9 @@ export function ZoneAssetsMatrix({
                             <EditableStatusCell assignment={a} />
                           )
                         ) : isQuantityItem ? (
-                          <CreateQuantityCell storeId={s.id} popItemId={it.id} canCreate={isAdmin} />
+                          <CreateQuantityCell storeId={s.id} popItemId={it.id} />
                         ) : (
-                          <CreateStatusCell storeId={s.id} popItemId={it.id} canCreate={isAdmin} />
+                          <CreateStatusCell storeId={s.id} popItemId={it.id} />
                         )}
                       </td>
                     );

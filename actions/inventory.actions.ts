@@ -157,10 +157,10 @@ export async function updateAssignmentDetail(
 
 /**
  * Establece el estado de un material para una joyería desde la vista
- * "Control por zona". Si ya existe la asignación, solo actualiza el estado
- * (admin o jefe zonal de esa zona, según RLS). Si la joyería todavía no
- * "cuenta" con ese material, crea la asignación — esto sí mueve stock de
- * bodega, así que queda restringido a admin (misma regla que assign_pop_item).
+ * "Control por zona". Si ya existe la asignación, solo actualiza el estado.
+ * Si la joyería todavía no "cuenta" con ese material, crea la asignación
+ * — esto sí mueve stock de bodega, así que lo puede hacer admin o el jefe
+ * zonal de esa joyería (el chequeo de zona ya ocurrió arriba).
  */
 export async function setAssignmentStatus(input: {
   storeId: string;
@@ -190,10 +190,6 @@ export async function setAssignmentStatus(input: {
     revalidatePath('/joyerias');
     revalidatePath('/inventario');
     return { success: true, assignmentId: existing.id };
-  }
-
-  if (user.role !== 'admin') {
-    return { error: 'Solo el administrador puede agregar este material a una joyería que aún no lo tiene' };
   }
 
   const { data: item } = await supabase.from('pop_items').select('id, warehouse_quantity').eq('id', input.popItemId).single();
@@ -229,8 +225,8 @@ export async function setAssignmentStatus(input: {
  * tarjetas, certificados, dípticos, sobres) donde lo que importa es cuánto
  * se entregó, no un estado físico. Si ya existe la asignación, actualiza
  * assigned_quantity (delega en updateAssignmentDetail, que valida stock).
- * Si no existe, la crea con esa cantidad — solo admin, mismo criterio que
- * setAssignmentStatus porque mueve stock de bodega.
+ * Si no existe, la crea con esa cantidad — admin o jefe zonal de esa joyería,
+ * mismo criterio que setAssignmentStatus.
  */
 export async function setAssignmentQuantity(input: {
   storeId: string;
@@ -259,10 +255,6 @@ export async function setAssignmentQuantity(input: {
 
   if (existing) {
     return updateAssignmentDetail(existing.id, { assigned_quantity: input.quantity });
-  }
-
-  if (user.role !== 'admin') {
-    return { error: 'Solo el administrador puede agregar este material a una joyería que aún no lo tiene' };
   }
 
   const { data: item } = await supabase.from('pop_items').select('id, warehouse_quantity').eq('id', input.popItemId).single();

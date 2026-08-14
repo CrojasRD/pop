@@ -65,13 +65,14 @@ create policy pop_items_delete_admin on public.pop_items for delete
   using (public.is_admin());
 
 -- INVENTORY ASSIGNMENTS -------------------------------------------------------
--- Crear/eliminar asignaciones (mover stock de bodega) sigue siendo exclusivo
--- del administrador. Actualizar el estado físico y la cantidad registrada en
--- una joyería lo puede hacer también el jefe zonal, limitado a su propia zona.
+-- Eliminar asignaciones sigue siendo exclusivo del administrador. Crear una
+-- asignación nueva (mover stock de bodega), actualizar el estado físico y la
+-- cantidad registrada en una joyería lo puede hacer también el jefe zonal,
+-- limitado a su propia zona.
 create policy assignments_select on public.inventory_assignments for select
   using (public.is_admin() or zone_id = public.current_user_zone_id());
-create policy assignments_write_admin on public.inventory_assignments for insert
-  with check (public.is_admin());
+create policy assignments_write on public.inventory_assignments for insert
+  with check (public.is_admin() or zone_id = public.current_user_zone_id());
 create policy assignments_update on public.inventory_assignments for update
   using (public.is_admin() or zone_id = public.current_user_zone_id())
   with check (public.is_admin() or zone_id = public.current_user_zone_id());
