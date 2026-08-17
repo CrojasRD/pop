@@ -189,3 +189,21 @@ create policy audit_select on public.audit_logs for select
   using (public.is_admin());
 create policy audit_insert on public.audit_logs for insert
   with check (true); -- se inserta vía función security definer log_audit()
+
+-- GRANTS BASE PARA `authenticated` -------------------------------------------
+-- RLS solo filtra FILAS de una operación ya permitida por GRANT — sin el
+-- GRANT, Postgres bloquea con "permission denied for table X" antes de
+-- siquiera evaluar la política, aunque esta diga que sí se puede. Cada
+-- comando de abajo debe reflejar exactamente lo que ya cubren las políticas
+-- de arriba para esa tabla (si agregas una política nueva, agrega su GRANT
+-- aquí también, o quedará bloqueada igual que pasó con suppliers/expenses/
+-- truck_schedule/stores/pop_categories/pop_items/zones/audit_logs).
+grant insert, update on public.stores to authenticated;
+grant insert, update, delete on public.suppliers to authenticated;
+grant insert, update, delete on public.expenses to authenticated;
+grant insert, update, delete on public.truck_schedule to authenticated;
+grant delete on public.assets to authenticated;
+grant insert on public.pop_categories to authenticated;
+grant insert, update on public.pop_items to authenticated;
+grant insert, update on public.zones to authenticated;
+grant select on public.audit_logs to authenticated;
