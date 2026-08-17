@@ -10,7 +10,7 @@ import { Input, Select, Textarea, FormField } from '@/components/ui/Input';
 import { Dialog } from '@/components/ui/Dialog';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { ExportButtons } from '@/components/shared/ExportButtons';
-import { createSupplier, updateSupplier, deleteSupplier } from '@/actions/suppliers.actions';
+import { createSupplier, updateSupplier, deleteSupplier, bulkDeleteSuppliers } from '@/actions/suppliers.actions';
 import type { Supplier } from '@/lib/types';
 
 export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
@@ -24,6 +24,11 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
   const filtered = useMemo(() => {
     return suppliers.filter((s) => {
       if (statusFilter !== 'all' && s.status !== statusFilter) return false;
@@ -35,6 +40,45 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
       return true;
     });
   }, [suppliers, statusFilter, query]);
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id));
+  const selectedCount = selectedIds.size;
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllFiltered() {
+    setSelectedIds((prev) => {
+      if (allFilteredSelected) {
+        const next = new Set(prev);
+        filtered.forEach((s) => next.delete(s.id));
+        return next;
+      }
+      const next = new Set(prev);
+      filtered.forEach((s) => next.add(s.id));
+      return next;
+    });
+  }
+
+  async function handleBulkDelete() {
+    setBulkDeleting(true);
+    setBulkError(null);
+    const result = await bulkDeleteSuppliers(Array.from(selectedIds));
+    setBulkDeleting(false);
+    if (result.error) {
+      setBulkError(result.error);
+      return;
+    }
+    setBulkDeleteOpen(false);
+    setSelectedIds(new Set());
+    router.refresh();
+  }
 
   const exportRows = filtered.map((s) => ({
     Nombre: s.name,
@@ -96,12 +140,26 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
 
       <p className="text-xs text-slate-400">{filtered.length} proveedor{filtered.length === 1 ? '' : 'es'}</p>
 
+      {selectedCount > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-xs">
+          <span className="font-medium text-slate-700">{selectedCount} seleccionado{selectedCount === 1 ? '' : 's'}</span>
+          <Button size="sm" variant="danger" onClick={() => { setBulkDeleteOpen(true); setBulkError(null); }} disabled={bulkDeleting}>
+            Eliminar seleccionados
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Cancelar selección</Button>
+          {bulkError ? <span className="text-red-600">{bulkError}</span> : null}
+        </div>
+      ) : null}
+
       {filtered.length === 0 ? (
         <EmptyState message="No hay proveedores registrados con esos filtros." />
       ) : (
         <Table>
           <Thead>
             <tr>
+              <Th className="w-8">
+                <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAllFiltered} />
+              </Th>
               <Th>Nombre</Th>
               <Th>Contacto</Th>
               <Th>Correo</Th>
@@ -114,6 +172,9 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
           <tbody>
             {filtered.map((s) => (
               <Tr key={s.id}>
+                <Td>
+                  <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} />
+                </Td>
                 <Td className="font-medium text-slate-800">{s.name}</Td>
                 <Td>{s.contact_name ?? '—'}</Td>
                 <Td>{s.email ?? '—'}</Td>
@@ -184,6 +245,17 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
         confirmLabel={loading ? 'Eliminando…' : 'Eliminar'}
         danger
         error={deleteError}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onClose={() => { setBulkDeleteOpen(false); setBulkError(null); }}
+        onConfirm={handleBulkDelete}
+        title="Eliminar proveedores seleccionados"
+        description={`¿Confirmas eliminar ${selectedCount} proveedor${selectedCount === 1 ? '' : 'es'} del registro? Esta acción no se puede deshacer.`}
+        confirmLabel={bulkDeleting ? 'Eliminando…' : 'Eliminar'}
+        danger
+        error={bulkError}
       />
     </div>
   );

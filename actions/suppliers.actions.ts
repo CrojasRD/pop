@@ -64,3 +64,21 @@ export async function deleteSupplier(id: string): Promise<ActionResult> {
   revalidatePath('/proveedores');
   return { success: true };
 }
+
+export async function bulkDeleteSuppliers(ids: string[]): Promise<ActionResult & { deletedCount?: number }> {
+  await requireAdmin();
+  if (!ids.length) return { error: 'No hay proveedores seleccionados' };
+
+  const supabase = createClient();
+  const { error, data } = await supabase.from('suppliers').delete().in('id', ids).select('id');
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: 'No se pudo eliminar ningún proveedor. Verifica que tengas permisos de administrador.' };
+  }
+
+  for (const row of data) {
+    await logAudit({ action: 'delete', module: 'suppliers', recordId: row.id });
+  }
+  revalidatePath('/proveedores');
+  return { success: true, deletedCount: data.length };
+}

@@ -67,3 +67,21 @@ export async function deleteExpense(id: string): Promise<ActionResult> {
   revalidatePath('/gastos');
   return { success: true };
 }
+
+export async function bulkDeleteExpenses(ids: string[]): Promise<ActionResult & { deletedCount?: number }> {
+  await requireAdmin();
+  if (!ids.length) return { error: 'No hay gastos seleccionados' };
+
+  const supabase = createClient();
+  const { error, data } = await supabase.from('expenses').delete().in('id', ids).select('id');
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: 'No se pudo eliminar ningún gasto. Verifica que tengas permisos de administrador.' };
+  }
+
+  for (const row of data) {
+    await logAudit({ action: 'delete', module: 'expenses', recordId: row.id });
+  }
+  revalidatePath('/gastos');
+  return { success: true, deletedCount: data.length };
+}

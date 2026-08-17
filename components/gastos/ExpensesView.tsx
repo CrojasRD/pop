@@ -11,7 +11,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import { MetricCard } from '@/components/dashboard/MetricCard';
-import { createExpense, updateExpense, deleteExpense } from '@/actions/expenses.actions';
+import { createExpense, updateExpense, deleteExpense, bulkDeleteExpenses } from '@/actions/expenses.actions';
 import { formatDate, formatCurrency, statusLabel } from '@/lib/utils';
 import type { Expense, Supplier, Zone } from '@/lib/types';
 
@@ -43,6 +43,11 @@ export function ExpensesView({
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
   const yearExpenses = useMemo(
     () => (yearFilter === 'all' ? expenses : expenses.filter((e) => e.expense_date.startsWith(yearFilter))),
     [expenses, yearFilter]
@@ -59,6 +64,45 @@ export function ExpensesView({
       return true;
     });
   }, [yearExpenses, categoryFilter, query]);
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((e) => selectedIds.has(e.id));
+  const selectedCount = selectedIds.size;
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllFiltered() {
+    setSelectedIds((prev) => {
+      if (allFilteredSelected) {
+        const next = new Set(prev);
+        filtered.forEach((e) => next.delete(e.id));
+        return next;
+      }
+      const next = new Set(prev);
+      filtered.forEach((e) => next.add(e.id));
+      return next;
+    });
+  }
+
+  async function handleBulkDelete() {
+    setBulkDeleting(true);
+    setBulkError(null);
+    const result = await bulkDeleteExpenses(Array.from(selectedIds));
+    setBulkDeleting(false);
+    if (result.error) {
+      setBulkError(result.error);
+      return;
+    }
+    setBulkDeleteOpen(false);
+    setSelectedIds(new Set());
+    router.refresh();
+  }
 
   const totalYear = yearExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const totalFiltered = filtered.reduce((sum, e) => sum + Number(e.amount), 0);
@@ -147,12 +191,26 @@ export function ExpensesView({
         </div>
       </div>
 
+      {selectedCount > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-xs">
+          <span className="font-medium text-slate-700">{selectedCount} seleccionado{selectedCount === 1 ? '' : 's'}</span>
+          <Button size="sm" variant="danger" onClick={() => { setBulkDeleteOpen(true); setBulkError(null); }} disabled={bulkDeleting}>
+            Eliminar seleccionados
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Cancelar selección</Button>
+          {bulkError ? <span className="text-red-600">{bulkError}</span> : null}
+        </div>
+      ) : null}
+
       {filtered.length === 0 ? (
         <EmptyState message="No hay gastos registrados con esos filtros." />
       ) : (
         <Table>
           <Thead>
             <tr>
+              <Th className="w-8">
+                <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAllFiltered} />
+              </Th>
               <Th>Fecha</Th>
               <Th>Categoría</Th>
               <Th>Descripción</Th>
@@ -168,6 +226,9 @@ export function ExpensesView({
               .sort((a, b) => b.expense_date.localeCompare(a.expense_date))
               .map((e) => (
                 <Tr key={e.id}>
+                  <Td>
+                    <input type="checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} />
+                  </Td>
                   <Td>{formatDate(e.expense_date)}</Td>
                   <Td><Badge status={e.category} /></Td>
                   <Td className="max-w-xs truncate font-medium text-slate-800">{e.description}</Td>
@@ -242,6 +303,17 @@ export function ExpensesView({
         confirmLabel={loading ? 'Eliminando…' : 'Eliminar'}
         danger
         error={deleteError}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onClose={() => { setBulkDeleteOpen(false); setBulkError(null); }}
+        onConfirm={handleBulkDelete}
+        title="Eliminar gastos seleccionados"
+        description={`¿Confirmas eliminar ${selectedCount} gasto${selectedCount === 1 ? '' : 's'}? Esta acción no se puede deshacer.`}
+        confirmLabel={bulkDeleting ? 'Eliminando…' : 'Eliminar'}
+        danger
+        error={bulkError}
       />
     </div>
   );
