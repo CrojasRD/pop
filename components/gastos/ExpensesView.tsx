@@ -41,6 +41,7 @@ export function ExpensesView({
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const yearExpenses = useMemo(
     () => (yearFilter === 'all' ? expenses : expenses.filter((e) => e.expense_date.startsWith(yearFilter))),
@@ -97,8 +98,13 @@ export function ExpensesView({
   async function handleDelete() {
     if (!deleteTarget) return;
     setLoading(true);
-    await deleteExpense(deleteTarget.id);
+    setDeleteError(null);
+    const result = await deleteExpense(deleteTarget.id);
     setLoading(false);
+    if (result.error) {
+      setDeleteError(result.error);
+      return;
+    }
     setDeleteTarget(null);
     router.refresh();
   }
@@ -229,12 +235,13 @@ export function ExpensesView({
 
       <ConfirmDialog
         open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
+        onClose={() => { setDeleteTarget(null); setDeleteError(null); }}
         onConfirm={handleDelete}
         title="Eliminar gasto"
         description={`¿Confirmas eliminar el gasto "${deleteTarget?.description}"? Esta acción no se puede deshacer.`}
-        confirmLabel="Eliminar"
+        confirmLabel={loading ? 'Eliminando…' : 'Eliminar'}
         danger
+        error={deleteError}
       />
     </div>
   );

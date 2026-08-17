@@ -35,6 +35,7 @@ export function TruckScheduleView({
   const [deleteTarget, setDeleteTarget] = useState<TruckStop | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -82,8 +83,13 @@ export function TruckScheduleView({
   async function handleDelete() {
     if (!deleteTarget) return;
     setLoading(true);
-    await deleteTruckStop(deleteTarget.id);
+    setDeleteError(null);
+    const result = await deleteTruckStop(deleteTarget.id);
     setLoading(false);
+    if (result.error) {
+      setDeleteError(result.error);
+      return;
+    }
     setDeleteTarget(null);
     setSelected(null);
     router.refresh();
@@ -281,12 +287,13 @@ export function TruckScheduleView({
       />
       <ConfirmDialog
         open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
+        onClose={() => { setDeleteTarget(null); setDeleteError(null); }}
         onConfirm={handleDelete}
         title="Eliminar actividad"
         description={`¿Confirmas eliminar "${deleteTarget?.activity_name}" del cronograma? Esta acción no se puede deshacer.`}
-        confirmLabel="Eliminar"
+        confirmLabel={loading ? 'Eliminando…' : 'Eliminar'}
         danger
+        error={deleteError}
       />
 
       <ConfirmDialog

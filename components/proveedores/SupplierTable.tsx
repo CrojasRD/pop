@@ -22,6 +22,7 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
   const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     return suppliers.filter((s) => {
@@ -63,8 +64,13 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
   async function handleDelete() {
     if (!deleteTarget) return;
     setLoading(true);
-    await deleteSupplier(deleteTarget.id);
+    setDeleteError(null);
+    const result = await deleteSupplier(deleteTarget.id);
     setLoading(false);
+    if (result.error) {
+      setDeleteError(result.error);
+      return;
+    }
     setDeleteTarget(null);
     router.refresh();
   }
@@ -171,12 +177,13 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
 
       <ConfirmDialog
         open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
+        onClose={() => { setDeleteTarget(null); setDeleteError(null); }}
         onConfirm={handleDelete}
         title="Eliminar proveedor"
         description={`¿Confirmas eliminar "${deleteTarget?.name}" del registro? Esta acción no se puede deshacer.`}
-        confirmLabel="Eliminar"
+        confirmLabel={loading ? 'Eliminando…' : 'Eliminar'}
         danger
+        error={deleteError}
       />
     </div>
   );

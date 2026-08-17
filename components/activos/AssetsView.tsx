@@ -37,6 +37,7 @@ export function AssetsView({
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const typeOptions = useMemo(() => {
     const set = new Set<string>(ASSET_TYPES);
@@ -84,8 +85,13 @@ export function AssetsView({
   async function handleDelete() {
     if (!deleteTarget) return;
     setLoading(true);
-    await deleteAsset(deleteTarget.id);
+    setDeleteError(null);
+    const result = await deleteAsset(deleteTarget.id);
     setLoading(false);
+    if (result.error) {
+      setDeleteError(result.error);
+      return;
+    }
     setDeleteTarget(null);
     router.refresh();
   }
@@ -225,12 +231,13 @@ export function AssetsView({
 
       <ConfirmDialog
         open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
+        onClose={() => { setDeleteTarget(null); setDeleteError(null); }}
         onConfirm={handleDelete}
         title="Eliminar activo"
         description={`¿Confirmas eliminar "${deleteTarget?.asset_type}" del registro? Esta acción no se puede deshacer.`}
-        confirmLabel="Eliminar"
+        confirmLabel={loading ? 'Eliminando…' : 'Eliminar'}
         danger
+        error={deleteError}
       />
     </div>
   );

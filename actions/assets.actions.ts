@@ -75,8 +75,14 @@ export async function updateAsset(id: string, input: unknown): Promise<ActionRes
 export async function deleteAsset(id: string): Promise<ActionResult> {
   await requireAdmin();
   const supabase = createClient();
-  const { error } = await supabase.from('assets').delete().eq('id', id);
+  // Sin `.select()`, Supabase/RLS no informa si el delete realmente afectó
+  // alguna fila — si la política bloquea el borrado, responde "éxito" sin
+  // haber borrado nada.
+  const { error, data } = await supabase.from('assets').delete().eq('id', id).select('id');
   if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: 'No se pudo eliminar el activo. Verifica que tengas permisos de administrador o que todavía exista.' };
+  }
 
   await logAudit({ action: 'delete', module: 'assets', recordId: id });
   revalidatePath('/activos');
