@@ -5,10 +5,7 @@ import { BulkUploadEvents } from '@/components/eventos/BulkUploadEvents';
 export default async function CargaMasivaEventosPage() {
   const user = await requireAdmin();
   const supabase = createClient();
-  const [{ data: stores }, { data: zones }] = await Promise.all([
-    supabase.from('stores').select('name'),
-    supabase.from('zones').select('name')
-  ]);
+  const { data: zones } = await supabase.from('zones').select('name');
 
   return (
     <div className="space-y-5">
@@ -17,7 +14,6 @@ export default async function CargaMasivaEventosPage() {
         <p className="text-sm text-slate-500">Los eventos importados quedan en estado Pendiente para revisión.</p>
       </div>
       <BulkUploadEvents
-        storeNames={(stores ?? []).map((s: any) => s.name)}
         zoneNames={(zones ?? []).map((z: any) => z.name)}
         userId={user.id}
       />

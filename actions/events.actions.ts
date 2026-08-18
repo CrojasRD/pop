@@ -143,33 +143,25 @@ export async function bulkImportEvents(
   await requireAdmin();
   const supabase = createClient();
 
-  const [{ data: zones }, { data: stores }] = await Promise.all([
-    supabase.from('zones').select('id, name'),
-    supabase.from('stores').select('id, name, zone_id')
-  ]);
+  const { data: zones } = await supabase.from('zones').select('id, name');
   const zoneMap = new Map((zones ?? []).map((z: any) => [z.name.toLowerCase(), z.id]));
-  const storeMap = new Map((stores ?? []).map((s: any) => [s.name.toLowerCase(), s]));
 
-  const payload = rows.map((r) => {
-    const store = storeMap.get(r.store_name.toLowerCase());
-    return {
-      event_name: r.event_name,
-      start_date: r.start_date,
-      end_date: r.end_date,
-      start_time: r.start_time || null,
-      end_time: r.end_time || null,
-      city: r.city || null,
-      province: r.province || null,
-      location: r.location || null,
-      store_id: store?.id ?? null,
-      zone_id: zoneMap.get(r.zone_name.toLowerCase()) ?? null,
-      event_type: r.event_type || null,
-      description: r.description || null,
-      justification: r.justification || null,
-      status: 'pending' as const,
-      created_by: createdBy
-    };
-  });
+  const payload = rows.map((r) => ({
+    event_name: r.event_name,
+    start_date: r.start_date,
+    end_date: r.end_date,
+    start_time: r.start_time || null,
+    end_time: r.end_time || null,
+    city: r.city || null,
+    province: r.province || null,
+    location: r.location || null,
+    zone_id: zoneMap.get(r.zone_name.toLowerCase()) ?? null,
+    event_type: r.event_type || null,
+    description: r.description || null,
+    justification: r.justification || null,
+    status: 'pending' as const,
+    created_by: createdBy
+  }));
 
   const { error, count } = await supabase.from('events').insert(payload, { count: 'exact' });
   if (error) return { error: error.message };
