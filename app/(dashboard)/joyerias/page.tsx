@@ -10,7 +10,7 @@ export default async function JoyeriasPage() {
   // (acrílicos, habladores, rompetráficos, volantes, tarjetas, etc.).
   const [{ data: stores }, { data: zones }, { data: managers }, { data: items }, { data: assignments }] = await Promise.all([
     supabase.from('stores').select('*, zone:zones(*), zonal_manager:users!stores_zonal_manager_id_fkey(*)').order('name'),
-    supabase.from('zones').select('*').order('name'),
+    supabase.from('zones').select('*').neq('name', 'COMERCIAL').order('name'),
     supabase.from('users').select('*').eq('role', 'zonal_manager').order('full_name'),
     supabase.from('pop_items').select('*, category:pop_categories(*)').order('name'),
     supabase.from('inventory_assignments').select('*')

@@ -10,7 +10,7 @@ export default async function ActivosPage() {
   // activos de su propia zona.
   const [{ data: assets }, { data: zones }, { data: stores }] = await Promise.all([
     supabase.from('assets').select('*, zone:zones(*), store:stores(*)').order('created_at', { ascending: false }),
-    supabase.from('zones').select('*').order('name'),
+    supabase.from('zones').select('*').neq('name', 'COMERCIAL').order('name'),
     supabase.from('stores').select('*').eq('status', 'active').order('name')
   ]);
 

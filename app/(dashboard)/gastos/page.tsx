@@ -9,7 +9,7 @@ export default async function GastosPage() {
   const [{ data: expenses }, { data: suppliers }, { data: zones }] = await Promise.all([
     supabase.from('expenses').select('*, supplier:suppliers(*), zone:zones(*)').order('expense_date', { ascending: false }),
     supabase.from('suppliers').select('*').order('name'),
-    supabase.from('zones').select('*').order('name')
+    supabase.from('zones').select('*').neq('name', 'COMERCIAL').order('name')
   ]);
 
   return (

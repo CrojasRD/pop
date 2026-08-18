@@ -16,7 +16,7 @@ export default async function DashboardPage() {
       await Promise.all([
         supabase.from('pop_items').select('id', { count: 'exact', head: true }),
         supabase.from('stores').select('id', { count: 'exact', head: true }),
-        supabase.from('zones').select('id', { count: 'exact', head: true }),
+        supabase.from('zones').select('id', { count: 'exact', head: true }).neq('name', 'COMERCIAL'),
         supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'zonal_manager'),
         supabase.from('replenishment_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('acquisition_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),

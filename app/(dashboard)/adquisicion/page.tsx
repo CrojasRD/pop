@@ -11,7 +11,7 @@ export default async function AdquisicionPage() {
       .from('acquisition_requests')
       .select('*, store:stores(*), category:pop_categories(*), requester:users!acquisition_requests_requested_by_fkey(*)')
       .order('created_at', { ascending: false }),
-    supabase.from('zones').select('*').order('name'),
+    supabase.from('zones').select('*').neq('name', 'COMERCIAL').order('name'),
     supabase.from('stores').select('*').order('name'),
     supabase.from('pop_categories').select('*').order('name')
   ]);

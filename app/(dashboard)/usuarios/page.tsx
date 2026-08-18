@@ -10,7 +10,7 @@ export default async function UsuariosPage() {
 
   const [{ data: users }, { data: zones }] = await Promise.all([
     supabase.from('users').select('*, zone:zones(*)').order('full_name'),
-    supabase.from('zones').select('*').order('name')
+    supabase.from('zones').select('*').neq('name', 'COMERCIAL').order('name')
   ]);
 
   return (
