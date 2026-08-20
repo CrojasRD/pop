@@ -8,10 +8,14 @@ export default async function UsuariosPage() {
   await requireAdmin();
   const supabase = createClient();
 
-  const [{ data: users }, { data: zones }] = await Promise.all([
+  const [{ data: users, error: usersError }, { data: zones }] = await Promise.all([
     supabase.from('users').select('*, zone:zones(*)').order('full_name'),
     supabase.from('zones').select('*').neq('name', 'COMERCIAL').order('name')
   ]);
+
+  if (usersError) {
+    console.error('Error cargando usuarios:', usersError);
+  }
 
   return (
     <div className="space-y-5">
@@ -24,6 +28,11 @@ export default async function UsuariosPage() {
           <Button variant="outline">Gestionar zonas</Button>
         </Link>
       </div>
+      {usersError ? (
+        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
+          Error al cargar usuarios: {usersError.message}
+        </p>
+      ) : null}
       <UserTable users={(users as any) ?? []} zones={(zones as any) ?? []} />
     </div>
   );
