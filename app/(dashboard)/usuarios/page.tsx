@@ -9,7 +9,7 @@ export default async function UsuariosPage() {
   const supabase = createClient();
 
   const [{ data: users, error: usersError }, { data: zones }] = await Promise.all([
-    supabase.from('users').select('*, zone:zones(*)').order('full_name'),
+    supabase.from('users').select('*, zone:zones!zone_id(*)').order('full_name'),
     supabase.from('zones').select('*').neq('name', 'COMERCIAL').order('name')
   ]);
 
