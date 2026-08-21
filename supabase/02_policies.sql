@@ -65,13 +65,14 @@ create policy pop_items_delete_admin on public.pop_items for delete
   using (public.is_admin());
 
 -- INVENTORY ASSIGNMENTS -------------------------------------------------------
--- Crear/eliminar asignaciones (mover stock de bodega) sigue siendo exclusivo
--- del administrador. Actualizar el estado físico y la cantidad registrada en
--- una joyería lo puede hacer también el jefe zonal, limitado a su propia zona.
+-- Eliminar asignaciones sigue siendo exclusivo del administrador. Crear una
+-- asignación nueva (mover stock de bodega), actualizar el estado físico y la
+-- cantidad registrada en una joyería lo puede hacer también el jefe zonal,
+-- limitado a su propia zona.
 create policy assignments_select on public.inventory_assignments for select
   using (public.is_admin() or zone_id = public.current_user_zone_id());
-create policy assignments_write_admin on public.inventory_assignments for insert
-  with check (public.is_admin());
+create policy assignments_write on public.inventory_assignments for insert
+  with check (public.is_admin() or zone_id = public.current_user_zone_id());
 create policy assignments_update on public.inventory_assignments for update
   using (public.is_admin() or zone_id = public.current_user_zone_id())
   with check (public.is_admin() or zone_id = public.current_user_zone_id());
@@ -188,3 +189,21 @@ create policy audit_select on public.audit_logs for select
   using (public.is_admin());
 create policy audit_insert on public.audit_logs for insert
   with check (true); -- se inserta vía función security definer log_audit()
+
+-- GRANTS BASE PARA `authenticated` -------------------------------------------
+-- RLS solo filtra FILAS de una operación ya permitida por GRANT — sin el
+-- GRANT, Postgres bloquea con "permission denied for table X" antes de
+-- siquiera evaluar la política, aunque esta diga que sí se puede. Cada
+-- comando de abajo debe reflejar exactamente lo que ya cubren las políticas
+-- de arriba para esa tabla (si agregas una política nueva, agrega su GRANT
+-- aquí también, o quedará bloqueada igual que pasó con suppliers/expenses/
+-- truck_schedule/stores/pop_categories/pop_items/zones/audit_logs).
+grant insert, update on public.stores to authenticated;
+grant insert, update, delete on public.suppliers to authenticated;
+grant insert, update, delete on public.expenses to authenticated;
+grant insert, update, delete on public.truck_schedule to authenticated;
+grant delete on public.assets to authenticated;
+grant insert on public.pop_categories to authenticated;
+grant insert, update on public.pop_items to authenticated;
+grant insert, update on public.zones to authenticated;
+grant select on public.audit_logs to authenticated;

@@ -10,7 +10,7 @@ export default async function InventarioPage() {
   const supabase = createClient();
 
   // RLS ya limita lo que cada rol puede leer; para jefe zonal el catálogo es
-  // visible (para poder solicitar), pero la vista destaca solo lo asignado a su zona.
+  // visible (para poder solicitar) aunque no vea el detalle de asignación.
   const [itemsRes, categoriesRes] = await Promise.all([
     supabase.from('pop_items').select('*, category:pop_categories(*)').order('name'),
     supabase.from('pop_categories').select('*').order('name')
@@ -37,7 +37,11 @@ export default async function InventarioPage() {
         ) : null}
       </div>
 
-      <InventoryTable items={(itemsRes.data as any) ?? []} categories={(categoriesRes.data as any) ?? []} isAdmin={user.role === 'admin'} />
+      <InventoryTable
+        items={(itemsRes.data as any) ?? []}
+        categories={(categoriesRes.data as any) ?? []}
+        isAdmin={user.role === 'admin'}
+      />
     </div>
   );
 }

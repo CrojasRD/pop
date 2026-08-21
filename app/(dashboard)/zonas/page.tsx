@@ -9,7 +9,7 @@ export default async function ZonasPage() {
   const supabase = createClient();
 
   const [{ data: zones }, { data: managers }, { data: stores }] = await Promise.all([
-    supabase.from('zones').select('*').order('name'),
+    supabase.from('zones').select('*').neq('name', 'COMERCIAL').order('name'),
     supabase.from('users').select('*').eq('role', 'zonal_manager').order('full_name'),
     supabase.from('stores').select('*').order('name')
   ]);

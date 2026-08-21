@@ -109,11 +109,12 @@ export async function assignPopItemToStore(input: {
 
 /**
  * Actualiza el estado físico y/o la cantidad registrada de un material ya
- * asignado a una joyería (ej. "tenemos 15, no 20" o "está dañado"). A
- * diferencia de assignPopItemToStore/returnPopItem, esto NO mueve stock de
- * bodega ni recalcula los agregados de pop_items — es una corrección del
- * registro en campo. Lo puede hacer el administrador o el jefe zonal de la
- * zona de esa joyería (reforzado también por RLS).
+ * asignado a una joyería (ej. "tenemos 15, no 20" o "está dañado"). Es una
+ * corrección del registro en campo, no un movimiento formal de bodega
+ * (para eso existen assignPopItemToStore/returnPopItem). Si cambia
+ * assigned_quantity, el agregado de pop_items se recalcula solo (trigger
+ * trg_sync_pop_item_assigned). Lo puede hacer el administrador o el jefe
+ * zonal de la zona de esa joyería (reforzado también por RLS).
  */
 export async function updateAssignmentDetail(
   assignmentId: string,
@@ -127,8 +128,17 @@ export async function updateAssignmentDetail(
   if (user.role === 'zonal_manager' && existing.zone_id !== user.zone_id) {
     return { error: 'Solo puedes modificar el inventario de tu propia zona' };
   }
-  if (input.assigned_quantity !== undefined && input.assigned_quantity < 0) {
-    return { error: 'La cantidad no puede ser negativa' };
+  if (input.assigned_quantity !== undefined) {
+    if (!Number.isInteger(input.assigned_quantity) || input.assigned_quantity < 0) {
+      return { error: 'La cantidad debe ser un número entero mayor o igual a 0' };
+    }
+    const { data: item } = await supabase.from('pop_items').select('warehouse_quantity').eq('id', existing.pop_item_id).single();
+    if (item) {
+      const available = item.warehouse_quantity + existing.assigned_quantity;
+      if (input.assigned_quantity > available) {
+        return { error: `Stock insuficiente en bodega (${available} disponibles en total)` };
+      }
+    }
   }
 
   const payload: Record<string, unknown> = {};
@@ -143,6 +153,138 @@ export async function updateAssignmentDetail(
   revalidatePath('/joyerias');
   revalidatePath(`/joyerias/${existing.store_id}`);
   return { success: true };
+}
+
+/**
+ * Establece el estado de un material para una joyería desde la vista
+ * "Control por zona". Si ya existe la asignación, solo actualiza el estado.
+ * Si la joyería todavía no "cuenta" con ese material, crea la asignación
+ * — esto sí mueve stock de bodega, así que lo puede hacer admin o el jefe
+ * zonal de esa joyería (el chequeo de zona ya ocurrió arriba).
+ */
+export async function setAssignmentStatus(input: {
+  storeId: string;
+  popItemId: string;
+  status: string;
+}): Promise<ActionResult & { assignmentId?: string }> {
+  const user = await requireUser();
+  const supabase = createClient();
+
+  const { data: store } = await supabase.from('stores').select('id, zone_id').eq('id', input.storeId).single();
+  if (!store) return { error: 'Joyería no encontrada' };
+  if (user.role === 'zonal_manager' && store.zone_id !== user.zone_id) {
+    return { error: 'Solo puedes modificar el inventario de tu propia zona' };
+  }
+
+  const { data: existing } = await supabase
+    .from('inventory_assignments')
+    .select('id')
+    .eq('pop_item_id', input.popItemId)
+    .eq('store_id', input.storeId)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase.from('inventory_assignments').update({ status: input.status }).eq('id', existing.id);
+    if (error) return { error: error.message };
+    await logAudit({ action: 'update', module: 'inventory_assignments', recordId: existing.id, newValue: { status: input.status } });
+    revalidatePath('/joyerias');
+    revalidatePath('/inventario');
+    return { success: true, assignmentId: existing.id };
+  }
+
+  const { data: item } = await supabase.from('pop_items').select('id, warehouse_quantity').eq('id', input.popItemId).single();
+  if (!item) return { error: 'Material no encontrado' };
+  if (item.warehouse_quantity < 1) return { error: 'No hay stock en bodega para asignar este material' };
+
+  // pop_items.assigned_quantity y warehouse_quantity se recalculan solos
+  // (trigger trg_sync_pop_item_assigned / trg_sync_pop_item_warehouse) al
+  // insertar esta fila — no hace falta actualizarlos aquí a mano.
+  const { data: created, error } = await supabase
+    .from('inventory_assignments')
+    .insert({
+      pop_item_id: input.popItemId,
+      store_id: input.storeId,
+      zone_id: store.zone_id,
+      assigned_quantity: 1,
+      status: input.status,
+      notes: 'Registrado desde Control por zona',
+      created_by: user.id
+    })
+    .select('id')
+    .single();
+  if (error) return { error: error.message };
+
+  await logAudit({ action: 'create', module: 'inventory_assignments', recordId: created.id, newValue: { status: input.status } });
+  revalidatePath('/joyerias');
+  revalidatePath('/inventario');
+  return { success: true, assignmentId: created.id };
+}
+
+/**
+ * Igual que setAssignmentStatus pero para materiales de consumo (volantes,
+ * tarjetas, certificados, dípticos, sobres) donde lo que importa es cuánto
+ * se entregó, no un estado físico. Si ya existe la asignación, actualiza
+ * assigned_quantity (delega en updateAssignmentDetail, que valida stock).
+ * Si no existe, la crea con esa cantidad — admin o jefe zonal de esa joyería,
+ * mismo criterio que setAssignmentStatus.
+ */
+export async function setAssignmentQuantity(input: {
+  storeId: string;
+  popItemId: string;
+  quantity: number;
+}): Promise<ActionResult & { assignmentId?: string }> {
+  const user = await requireUser();
+  const supabase = createClient();
+
+  if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
+    return { error: 'Ingresa una cantidad entera mayor a 0' };
+  }
+
+  const { data: store } = await supabase.from('stores').select('id, zone_id').eq('id', input.storeId).single();
+  if (!store) return { error: 'Joyería no encontrada' };
+  if (user.role === 'zonal_manager' && store.zone_id !== user.zone_id) {
+    return { error: 'Solo puedes modificar el inventario de tu propia zona' };
+  }
+
+  const { data: existing } = await supabase
+    .from('inventory_assignments')
+    .select('id')
+    .eq('pop_item_id', input.popItemId)
+    .eq('store_id', input.storeId)
+    .maybeSingle();
+
+  if (existing) {
+    return updateAssignmentDetail(existing.id, { assigned_quantity: input.quantity });
+  }
+
+  const { data: item } = await supabase.from('pop_items').select('id, warehouse_quantity').eq('id', input.popItemId).single();
+  if (!item) return { error: 'Material no encontrado' };
+  if (item.warehouse_quantity < input.quantity) {
+    return { error: `Stock insuficiente en bodega (${item.warehouse_quantity} disponibles)` };
+  }
+
+  // pop_items.assigned_quantity y warehouse_quantity se recalculan solos
+  // (trigger trg_sync_pop_item_assigned / trg_sync_pop_item_warehouse) al
+  // insertar esta fila — no hace falta actualizarlos aquí a mano.
+  const { data: created, error } = await supabase
+    .from('inventory_assignments')
+    .insert({
+      pop_item_id: input.popItemId,
+      store_id: input.storeId,
+      zone_id: store.zone_id,
+      assigned_quantity: input.quantity,
+      status: 'good',
+      notes: 'Registrado desde Control por zona',
+      created_by: user.id
+    })
+    .select('id')
+    .single();
+  if (error) return { error: error.message };
+
+  await logAudit({ action: 'create', module: 'inventory_assignments', recordId: created.id, newValue: { assigned_quantity: input.quantity } });
+  revalidatePath('/joyerias');
+  revalidatePath('/inventario');
+  return { success: true, assignmentId: created.id };
 }
 
 export async function returnPopItem(input: { assignmentId: string; quantity: number; notes?: string }): Promise<ActionResult> {

@@ -11,7 +11,7 @@ export default async function ReposicionPage() {
       .from('replenishment_requests')
       .select('*, store:stores(*), pop_item:pop_items(*), requester:users!replenishment_requests_requested_by_fkey(*)')
       .order('created_at', { ascending: false }),
-    supabase.from('zones').select('*').order('name'),
+    supabase.from('zones').select('*').neq('name', 'COMERCIAL').order('name'),
     supabase.from('stores').select('*').order('name'),
     supabase.from('pop_items').select('*').order('name')
   ]);

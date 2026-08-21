@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Table, Thead, Th, Tr, Td, EmptyState } from '@/components/ui/Table';
 import { ExportButtons } from '@/components/shared/ExportButtons';
-import { getReportData, REPORT_OPTIONS, type ReportType } from '@/actions/reports.actions';
+import { getReportData } from '@/actions/reports.actions';
+import { REPORT_OPTIONS, type ReportType } from '@/lib/reports';
 
 export function ReportBuilder() {
   const [type, setType] = useState<ReportType>('inventory_general');

@@ -59,12 +59,66 @@ export async function updateEvent(id: string, input: unknown): Promise<ActionRes
 export async function deleteEvent(id: string): Promise<ActionResult> {
   await requireAdmin();
   const supabase = createClient();
-  const { error } = await supabase.from('events').delete().eq('id', id);
+  // Importante: sin `.select()`, Supabase/RLS no informa si el delete realmente
+  // afectó alguna fila — si la política bloquea el borrado, responde "éxito"
+  // sin haber borrado nada. Pedimos las filas eliminadas para poder detectarlo.
+  const { error, data } = await supabase.from('events').delete().eq('id', id).select('id');
   if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: 'No se pudo eliminar el evento. Verifica que tengas permisos de administrador o que el evento todavía exista.' };
+  }
 
   await logAudit({ action: 'delete', module: 'events', recordId: id });
   revalidatePath('/eventos');
   return { success: true };
+}
+
+export async function bulkDeleteEvents(ids: string[]): Promise<ActionResult & { deletedCount?: number }> {
+  await requireAdmin();
+  if (!ids.length) return { error: 'No hay eventos seleccionados' };
+
+  const supabase = createClient();
+  // Mismo cuidado que en deleteEvent: sin `.select()` no se detecta si RLS/permisos
+  // bloquearon el borrado de alguna o todas las filas.
+  const { error, data } = await supabase.from('events').delete().in('id', ids).select('id');
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: 'No se pudo eliminar ningún evento. Verifica que tengas permisos de administrador.' };
+  }
+
+  for (const row of data) {
+    await logAudit({ action: 'delete', module: 'events', recordId: row.id });
+  }
+  revalidatePath('/eventos');
+  return { success: true, deletedCount: data.length };
+}
+
+export async function bulkApproveEvents(ids: string[], comment = ''): Promise<ActionResult & { approvedCount?: number }> {
+  const admin = await requireAdmin();
+  if (!ids.length) return { error: 'No hay eventos seleccionados' };
+
+  const supabase = createClient();
+  const { error, data } = await supabase
+    .from('events')
+    .update({
+      status: 'approved',
+      admin_comment: comment || null,
+      approved_by: admin.id,
+      approved_at: new Date().toISOString()
+    })
+    .in('id', ids)
+    .eq('status', 'pending')
+    .select('id');
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: 'No se pudo aprobar ningún evento. Verifica que estén pendientes y tengas permisos.' };
+  }
+
+  for (const row of data) {
+    await logAudit({ action: 'approve', module: 'events', recordId: row.id, newValue: { comment } });
+  }
+  revalidatePath('/eventos');
+  return { success: true, approvedCount: data.length };
 }
 
 export async function reviewEvent(id: string, decision: 'approved' | 'rejected', comment: string): Promise<ActionResult> {
@@ -89,33 +143,25 @@ export async function bulkImportEvents(
   await requireAdmin();
   const supabase = createClient();
 
-  const [{ data: zones }, { data: stores }] = await Promise.all([
-    supabase.from('zones').select('id, name'),
-    supabase.from('stores').select('id, name, zone_id')
-  ]);
+  const { data: zones } = await supabase.from('zones').select('id, name');
   const zoneMap = new Map((zones ?? []).map((z: any) => [z.name.toLowerCase(), z.id]));
-  const storeMap = new Map((stores ?? []).map((s: any) => [s.name.toLowerCase(), s]));
 
-  const payload = rows.map((r) => {
-    const store = storeMap.get(r.store_name.toLowerCase());
-    return {
-      event_name: r.event_name,
-      start_date: r.start_date,
-      end_date: r.end_date,
-      start_time: r.start_time || null,
-      end_time: r.end_time || null,
-      city: r.city || null,
-      province: r.province || null,
-      location: r.location || null,
-      store_id: store?.id ?? null,
-      zone_id: zoneMap.get(r.zone_name.toLowerCase()) ?? null,
-      event_type: r.event_type || null,
-      description: r.description || null,
-      justification: r.justification || null,
-      status: 'pending' as const,
-      created_by: createdBy
-    };
-  });
+  const payload = rows.map((r) => ({
+    event_name: r.event_name,
+    start_date: r.start_date,
+    end_date: r.end_date,
+    start_time: r.start_time || null,
+    end_time: r.end_time || null,
+    city: r.city || null,
+    province: r.province || null,
+    location: r.location || null,
+    zone_id: zoneMap.get(r.zone_name.toLowerCase()) ?? null,
+    event_type: r.event_type || null,
+    description: r.description || null,
+    justification: r.justification || null,
+    status: 'pending' as const,
+    created_by: createdBy
+  }));
 
   const { error, count } = await supabase.from('events').insert(payload, { count: 'exact' });
   if (error) return { error: error.message };

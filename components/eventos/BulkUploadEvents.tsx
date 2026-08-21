@@ -12,16 +12,15 @@ import { bulkImportEvents } from '@/actions/events.actions';
 
 const TEMPLATE_HEADERS = [
   'nombre_evento', 'fecha_inicio', 'fecha_fin', 'hora_inicio', 'hora_fin', 'ciudad',
-  'provincia', 'lugar', 'joyeria', 'zona', 'tipo_evento', 'descripcion', 'justificacion'
+  'provincia', 'lugar', 'zona', 'tipo_evento', 'descripcion', 'justificacion'
 ];
 
-export function BulkUploadEvents({ storeNames, zoneNames, userId }: { storeNames: string[]; zoneNames: string[]; userId: string }) {
+export function BulkUploadEvents({ zoneNames, userId }: { zoneNames: string[]; userId: string }) {
   const router = useRouter();
   const [preview, setPreview] = useState<ImportPreview<EventImportRow> | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const storeSet = new Set(storeNames.map((s) => s.toLowerCase()));
   const zoneSet = new Set(zoneNames.map((z) => z.toLowerCase()));
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -29,7 +28,7 @@ export function BulkUploadEvents({ storeNames, zoneNames, userId }: { storeNames
     if (!file) return;
     setMessage(null);
     const raw = await parseSpreadsheetFile(file);
-    setPreview(validateEventRows(raw, storeSet, zoneSet));
+    setPreview(validateEventRows(raw, zoneSet));
   }
 
   async function confirmImport() {

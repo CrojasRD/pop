@@ -7,8 +7,10 @@ import { Dialog } from '@/components/ui/Dialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Input';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { formatDate } from '@/lib/utils';
 import { reviewEvent, deleteEvent } from '@/actions/events.actions';
+import { canDeleteEvent } from '@/lib/permissions';
 import type { AppUser, EventRecord } from '@/lib/types';
 
 export function EventDetailDialog({
@@ -25,6 +27,8 @@ export function EventDetailDialog({
   const router = useRouter();
   const [comment, setComment] = useState(event?.admin_comment ?? '');
   const [loading, setLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   if (!event) return null;
 
@@ -40,8 +44,15 @@ export function EventDetailDialog({
   }
 
   async function handleDelete() {
-    if (!confirm('¿Eliminar este evento definitivamente?')) return;
-    await deleteEvent(event!.id);
+    setLoading(true);
+    setDeleteError(null);
+    const result = await deleteEvent(event!.id);
+    setLoading(false);
+    if (result.error) {
+      setDeleteError(result.error);
+      return;
+    }
+    setConfirmDelete(false);
     onClose();
     router.refresh();
   }
@@ -113,11 +124,22 @@ export function EventDetailDialog({
               <Button size="sm" variant="outline">Editar</Button>
             </Link>
           ) : <span />}
-          {user.role === 'admin' ? (
-            <Button size="sm" variant="danger" onClick={handleDelete}>Eliminar</Button>
+          {canDeleteEvent(user) ? (
+            <Button size="sm" variant="danger" onClick={() => { setConfirmDelete(true); setDeleteError(null); }}>Eliminar</Button>
           ) : null}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onClose={() => { setConfirmDelete(false); setDeleteError(null); }}
+        onConfirm={handleDelete}
+        title="Eliminar evento"
+        description={`¿Confirmas eliminar "${event.event_name}" definitivamente? Esta acción no se puede deshacer.`}
+        confirmLabel={loading ? 'Eliminando…' : 'Eliminar'}
+        danger
+        error={deleteError}
+      />
     </Dialog>
   );
 }

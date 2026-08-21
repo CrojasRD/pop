@@ -108,7 +108,8 @@ export function validatePopItemRows(
 // -------------------------------------------------------------------
 // EVENTOS — columnas esperadas
 // nombre_evento, fecha_inicio, fecha_fin, hora_inicio, hora_fin, ciudad,
-// provincia, lugar, joyeria, zona, tipo_evento, descripcion, justificacion
+// provincia, lugar, zona, tipo_evento, descripcion, justificacion
+// (sin joyería: la carga masiva es por zona, ej. feriados)
 // -------------------------------------------------------------------
 export interface EventImportRow {
   [key: string]: unknown;
@@ -120,7 +121,6 @@ export interface EventImportRow {
   city: string;
   province: string;
   location: string;
-  store_name: string;
   zone_name: string;
   event_type: string;
   description: string;
@@ -129,7 +129,6 @@ export interface EventImportRow {
 
 export function validateEventRows(
   raw: Record<string, string>[],
-  validStoreNames: Set<string>,
   validZoneNames: Set<string>
 ): ImportPreview<EventImportRow> {
   const rows: ImportRowResult<EventImportRow>[] = raw.map((r, idx) => {
@@ -137,7 +136,6 @@ export function validateEventRows(
     const event_name = (r.nombre_evento ?? r.event_name ?? '').trim();
     const start_date = (r.fecha_inicio ?? r.start_date ?? '').trim();
     const end_date = (r.fecha_fin ?? r.end_date ?? '').trim();
-    const store_name = (r.joyeria ?? r.store_name ?? '').trim();
     const zone_name = (r.zona ?? r.zone_name ?? '').trim();
 
     if (!event_name) errors.push(REQUIRED_MSG('nombre_evento'));
@@ -150,7 +148,6 @@ export function validateEventRows(
     }
     if (!zone_name) errors.push(REQUIRED_MSG('zona'));
     else if (!validZoneNames.has(zone_name.toLowerCase())) errors.push(`Zona "${zone_name}" no existe`);
-    if (store_name && !validStoreNames.has(store_name.toLowerCase())) errors.push(`Joyería "${store_name}" no existe`);
 
     return {
       row: idx + 2,
@@ -163,7 +160,6 @@ export function validateEventRows(
         city: (r.ciudad ?? r.city ?? '').trim(),
         province: (r.provincia ?? r.province ?? '').trim(),
         location: (r.lugar ?? r.location ?? '').trim(),
-        store_name,
         zone_name,
         event_type: (r.tipo_evento ?? r.event_type ?? '').trim(),
         description: (r.descripcion ?? r.description ?? '').trim(),

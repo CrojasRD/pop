@@ -5,7 +5,7 @@ const PUBLIC_PATHS = ['/login', '/auth/callback'];
 
 export async function middleware(request: NextRequest) {
   const { response, user } = await updateSession(request);
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
@@ -15,7 +15,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (user && pathname === '/login') {
+  // Solo redirigir al dashboard si NO hay parámetro force=true
+  // force=true lo pone requireUser() cuando no puede leer el perfil,
+  // así se rompe el ciclo infinito de redirecciones.
+  if (user && pathname === '/login' && !searchParams.has('force')) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
@@ -23,5 +26,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)']
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)']
 };

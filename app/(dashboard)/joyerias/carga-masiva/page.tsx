@@ -6,7 +6,7 @@ export default async function CargaMasivaJoyeriasPage() {
   await requireAdmin();
   const supabase = createClient();
   const [{ data: zones }, { data: stores }, { data: items }] = await Promise.all([
-    supabase.from('zones').select('name'),
+    supabase.from('zones').select('name').neq('name', 'COMERCIAL'),
     supabase.from('stores').select('code'),
     supabase.from('pop_items').select('internal_code')
   ]);
