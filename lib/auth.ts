@@ -11,6 +11,22 @@ export async function getCurrentUser(): Promise<AppUser | null> {
     if (authError) console.error('[auth] getUser error:', authError.message);
     if (!user) { console.error('[auth] No auth user'); return null; }
 
+    // NOTA DE SEGURIDAD (pendiente de investigación, ver auditoría de seguridad):
+    // Este client admin bypasea RLS, pero el `.eq('id', user.id)` usa el `id`
+    // ya devuelto por `supabase.auth.getUser()` (verificado contra el JWT de la
+    // sesión, no un valor que venga del cliente), así que el alcance de esta
+    // consulta sigue acotado al propio usuario autenticado — no hay forma de
+    // leer el perfil de otro usuario a través de esta función.
+    // El camino "ideal" sería usar el cliente RLS normal como primario (la
+    // policy `users_select_self` en supabase/02_policies.sql ya permite
+    // `id = auth.uid()`, y las funciones helper `is_admin()` /
+    // `current_user_zone_id()` en supabase/01_functions.sql son
+    // SECURITY DEFINER, por lo que en teoría no deberían recursar sobre la
+    // RLS de `users`). Pero el fallback a admin sugiere que en la base real
+    // esa policy está fallando por algún motivo no reproducido acá (posible
+    // desincronización entre el SQL versionado y lo aplicado en producción,
+    // rol/owner de las funciones, etc.). No se cambia el orden admin/RLS sin
+    // poder probarlo contra la base real — ver reporte de la auditoría.
     // Intentar con admin client (bypasa RLS)
     try {
       const admin = createAdminClient();

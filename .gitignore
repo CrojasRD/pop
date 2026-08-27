@@ -36,3 +36,12 @@ Thumbs.db
 run-sql.js
 setup.bat
 deploy.bat
+create-users.js
+set-env-vercel.bat
+push.bat
+run-db.bat
+run-users.bat
+scripts/
+
+.vercel
+.env*
