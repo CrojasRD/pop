@@ -26,9 +26,15 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  // Si Supabase Auth está caído o muy lento, no dejamos que el middleware
+  // cuelgue toda la app (Vercel termina la función a los ~25s y devuelve
+  // 504 en cualquier ruta, incluido /login). Con este límite, ante una
+  // caída seguimos sirviendo la página y dejamos que cada ruta protegida
+  // maneje la falta de sesión por su cuenta.
+  const user = await Promise.race([
+    supabase.auth.getUser().then(({ data }) => data.user),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
+  ]).catch(() => null);
 
   return { response: supabaseResponse, user };
 }
