@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus } from 'lucide-react';
-import { Table, Thead, Th, Tr, Td, EmptyState } from '@/components/ui/Table';
+import { ChevronDown, Plus } from 'lucide-react';
+import { Thead, Th, Tr, Td, EmptyState } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea, FormField } from '@/components/ui/Input';
@@ -59,6 +59,23 @@ export function AssetsView({
       return true;
     });
   }, [assets, zoneFilter, statusFilter, typeFilter, query]);
+
+  const groups = useMemo(() => {
+    const byZone = new Map<string, Asset[]>();
+    filtered.forEach((a) => {
+      const list = byZone.get(a.zone_id) ?? [];
+      list.push(a);
+      byZone.set(a.zone_id, list);
+    });
+    const zoneOrder = zones.map((z) => z.id);
+    return Array.from(byZone.entries())
+      .map(([zoneId, items]) => ({
+        zoneId,
+        zoneName: zones.find((z) => z.id === zoneId)?.name ?? items[0]?.zone?.name ?? 'Sin zona',
+        items
+      }))
+      .sort((a, b) => zoneOrder.indexOf(a.zoneId) - zoneOrder.indexOf(b.zoneId));
+  }, [filtered, zones]);
 
   const exportRows = filtered.map((a) => ({
     Tipo: a.asset_type,
@@ -131,40 +148,53 @@ export function AssetsView({
       {filtered.length === 0 ? (
         <EmptyState message="No hay activos registrados con esos filtros." />
       ) : (
-        <Table>
-          <Thead>
-            <tr>
-              <Th>Tipo</Th>
-              <Th>Zona</Th>
-              <Th>Joyería</Th>
-              <Th>Estado</Th>
-              <Th>Acciones</Th>
-            </tr>
-          </Thead>
-          <tbody>
-            {filtered.map((a) => {
-              const canEdit = canEditAsset(user, a.zone_id);
-              return (
-                <Tr key={a.id}>
-                  <Td className="font-medium text-slate-800">{a.asset_type}</Td>
-                  <Td>{a.zone?.name ?? '—'}</Td>
-                  <Td>{a.store?.name ?? '—'}</Td>
-                  <Td><Badge status={a.status} /></Td>
-                  <Td>
-                    <div className="flex gap-1.5">
-                      {canEdit ? (
-                        <Button size="sm" variant="outline" onClick={() => { setEditing(a); setShowForm(true); }}>Editar</Button>
-                      ) : null}
-                      {canDeleteAsset(user) ? (
-                        <Button size="sm" variant="danger" onClick={() => setDeleteTarget(a)}>Eliminar</Button>
-                      ) : null}
-                    </div>
-                  </Td>
-                </Tr>
-              );
-            })}
-          </tbody>
-        </Table>
+        <div className="space-y-3">
+          {groups.map((g) => (
+            <details key={g.zoneId} open className="group overflow-hidden rounded-xl border border-slate-200">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 [&::-webkit-details-marker]:hidden">
+                <span>{g.zoneName}</span>
+                <span className="flex items-center gap-2 text-xs font-normal text-slate-400">
+                  {g.items.length} activo{g.items.length === 1 ? '' : 's'}
+                  <ChevronDown size={16} className="transition-transform group-open:rotate-180" />
+                </span>
+              </summary>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-sm">
+                  <Thead>
+                    <tr>
+                      <Th>Tipo</Th>
+                      <Th>Joyería</Th>
+                      <Th>Estado</Th>
+                      <Th>Acciones</Th>
+                    </tr>
+                  </Thead>
+                  <tbody>
+                    {g.items.map((a) => {
+                      const canEdit = canEditAsset(user, a.zone_id);
+                      return (
+                        <Tr key={a.id}>
+                          <Td className="font-medium text-slate-800">{a.asset_type}</Td>
+                          <Td>{a.store?.name ?? '—'}</Td>
+                          <Td><Badge status={a.status} /></Td>
+                          <Td>
+                            <div className="flex gap-1.5">
+                              {canEdit ? (
+                                <Button size="sm" variant="outline" onClick={() => { setEditing(a); setShowForm(true); }}>Editar</Button>
+                              ) : null}
+                              {canDeleteAsset(user) ? (
+                                <Button size="sm" variant="danger" onClick={() => setDeleteTarget(a)}>Eliminar</Button>
+                              ) : null}
+                            </div>
+                          </Td>
+                        </Tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          ))}
+        </div>
       )}
 
       <Dialog
