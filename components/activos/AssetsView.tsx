@@ -7,6 +7,7 @@ import { Table, Thead, Th, Tr, Td, EmptyState } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea, FormField } from '@/components/ui/Input';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 import { Dialog } from '@/components/ui/Dialog';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { ExportButtons } from '@/components/shared/ExportButtons';
@@ -52,7 +53,7 @@ export function AssetsView({
       if (typeFilter !== 'all' && a.asset_type !== typeFilter) return false;
       if (query) {
         const q = query.toLowerCase();
-        const haystack = `${a.asset_type} ${a.location ?? ''} ${a.responsible_name ?? ''}`.toLowerCase();
+        const haystack = `${a.asset_type} ${a.store?.name ?? ''}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
@@ -62,8 +63,7 @@ export function AssetsView({
   const exportRows = filtered.map((a) => ({
     Tipo: a.asset_type,
     Zona: a.zone?.name ?? '',
-    Ubicación: a.location ?? '',
-    Responsable: a.responsible_name ?? '',
+    Joyería: a.store?.name ?? '',
     Estado: a.status,
     Notas: a.notes ?? ''
   }));
@@ -100,7 +100,7 @@ export function AssetsView({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          <Input placeholder="Buscar por tipo, ubicación o responsable…" value={query} onChange={(e) => setQuery(e.target.value)} className="w-64" />
+          <Input placeholder="Buscar por tipo o joyería…" value={query} onChange={(e) => setQuery(e.target.value)} className="w-64" />
           {isAdmin ? (
             <Select value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)} className="w-48">
               <option value="all">Todas las zonas</option>
@@ -136,8 +136,7 @@ export function AssetsView({
             <tr>
               <Th>Tipo</Th>
               <Th>Zona</Th>
-              <Th>Ubicación</Th>
-              <Th>Responsable</Th>
+              <Th>Joyería</Th>
               <Th>Estado</Th>
               <Th>Acciones</Th>
             </tr>
@@ -149,8 +148,7 @@ export function AssetsView({
                 <Tr key={a.id}>
                   <Td className="font-medium text-slate-800">{a.asset_type}</Td>
                   <Td>{a.zone?.name ?? '—'}</Td>
-                  <Td>{a.location ?? '—'}</Td>
-                  <Td>{a.responsible_name ?? '—'}</Td>
+                  <Td>{a.store?.name ?? '—'}</Td>
                   <Td><Badge status={a.status} /></Td>
                   <Td>
                     <div className="flex gap-1.5">
@@ -200,16 +198,13 @@ export function AssetsView({
             )}
           </FormField>
           <FormField label="Joyería relacionada (opcional)">
-            <Select name="store_id" defaultValue={editing?.store_id ?? ''}>
-              <option value="">Sin joyería específica</option>
-              {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Ubicación">
-            <Input name="location" defaultValue={editing?.location ?? ''} placeholder="Ej: Bodega zonal, agencia Guayaquil…" />
-          </FormField>
-          <FormField label="Responsable">
-            <Input name="responsible_name" defaultValue={editing?.responsible_name ?? ''} placeholder="Nombre de quien está a cargo" />
+            <SearchSelect
+              name="store_id"
+              defaultValue={editing?.store_id ?? ''}
+              placeholder="Escribe para buscar una joyería…"
+              emptyLabel="No se encontró ninguna joyería"
+              options={stores.map((s) => ({ value: s.id, label: s.name }))}
+            />
           </FormField>
           <FormField label="Estado">
             <Select name="status" defaultValue={editing?.status ?? 'good'}>
