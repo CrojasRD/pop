@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus } from 'lucide-react';
-import { Table, Thead, Th, Tr, Td, EmptyState } from '@/components/ui/Table';
+import { ChevronDown, Plus } from 'lucide-react';
+import { Thead, Th, Tr, Td, EmptyState } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea, FormField } from '@/components/ui/Input';
@@ -47,6 +47,28 @@ export function SupplierTable({ suppliers, zones }: { suppliers: Supplier[]; zon
   const allFilteredSelected = filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id));
   const selectedCount = selectedIds.size;
 
+  const groups = useMemo(() => {
+    const byZone = new Map<string, Supplier[]>();
+    filtered.forEach((s) => {
+      const key = s.zone_id ?? 'sin-zona';
+      const list = byZone.get(key) ?? [];
+      list.push(s);
+      byZone.set(key, list);
+    });
+    const zoneOrder = zones.map((z) => z.id);
+    return Array.from(byZone.entries())
+      .map(([zoneId, items]) => ({
+        zoneId,
+        zoneName: zoneId === 'sin-zona' ? 'Sin zona' : zones.find((z) => z.id === zoneId)?.name ?? items[0]?.zone?.name ?? 'Sin zona',
+        items
+      }))
+      .sort((a, b) => {
+        if (a.zoneId === 'sin-zona') return 1;
+        if (b.zoneId === 'sin-zona') return -1;
+        return zoneOrder.indexOf(a.zoneId) - zoneOrder.indexOf(b.zoneId);
+      });
+  }, [filtered, zones]);
+
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -65,6 +87,15 @@ export function SupplierTable({ suppliers, zones }: { suppliers: Supplier[]; zon
       }
       const next = new Set(prev);
       filtered.forEach((s) => next.add(s.id));
+      return next;
+    });
+  }
+
+  function toggleSelectGroup(items: Supplier[]) {
+    const groupAllSelected = items.length > 0 && items.every((s) => selectedIds.has(s.id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      items.forEach((s) => (groupAllSelected ? next.delete(s.id) : next.add(s.id)));
       return next;
     });
   }
@@ -156,7 +187,14 @@ export function SupplierTable({ suppliers, zones }: { suppliers: Supplier[]; zon
         </div>
       </div>
 
-      <p className="text-xs text-slate-400">{filtered.length} proveedor{filtered.length === 1 ? '' : 'es'}</p>
+      <div className="flex items-center gap-3">
+        <p className="text-xs text-slate-400">{filtered.length} proveedor{filtered.length === 1 ? '' : 'es'}</p>
+        {filtered.length > 0 ? (
+          <button type="button" onClick={toggleSelectAllFiltered} className="text-xs font-medium text-brand-600 hover:underline">
+            {allFilteredSelected ? 'Quitar selección' : 'Seleccionar todos'}
+          </button>
+        ) : null}
+      </div>
 
       {selectedCount > 0 ? (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-xs">
@@ -172,45 +210,66 @@ export function SupplierTable({ suppliers, zones }: { suppliers: Supplier[]; zon
       {filtered.length === 0 ? (
         <EmptyState message="No hay proveedores registrados con esos filtros." />
       ) : (
-        <Table>
-          <Thead>
-            <tr>
-              <Th className="w-8">
-                <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAllFiltered} />
-              </Th>
-              <Th>Nombre</Th>
-              <Th>Zona</Th>
-              <Th>Contacto</Th>
-              <Th>Correo</Th>
-              <Th>Teléfono</Th>
-              <Th>Tipo</Th>
-              <Th>Estado</Th>
-              <Th>Acciones</Th>
-            </tr>
-          </Thead>
-          <tbody>
-            {filtered.map((s) => (
-              <Tr key={s.id}>
-                <Td>
-                  <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} />
-                </Td>
-                <Td className="font-medium text-slate-800">{s.name}</Td>
-                <Td>{s.zone?.name ?? s.zone_city ?? '—'}</Td>
-                <Td>{s.contact_name ?? '—'}</Td>
-                <Td>{s.email ?? '—'}</Td>
-                <Td>{s.phone ?? '—'}</Td>
-                <Td>{s.provider_type ?? s.category ?? '—'}</Td>
-                <Td><Badge status={s.status} /></Td>
-                <Td>
-                  <div className="flex gap-1.5">
-                    <Button size="sm" variant="outline" onClick={() => { setEditing(s); setShowForm(true); }}>Editar</Button>
-                    <Button size="sm" variant="danger" onClick={() => setDeleteTarget(s)}>Eliminar</Button>
-                  </div>
-                </Td>
-              </Tr>
-            ))}
-          </tbody>
-        </Table>
+        <div className="space-y-3">
+          {groups.map((g) => {
+            const groupAllSelected = g.items.length > 0 && g.items.every((s) => selectedIds.has(s.id));
+            return (
+              <details key={g.zoneId} open className="group overflow-hidden rounded-xl border border-slate-200">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 [&::-webkit-details-marker]:hidden">
+                  <span>{g.zoneName}</span>
+                  <span className="flex items-center gap-2 text-xs font-normal text-slate-400">
+                    {g.items.length} proveedor{g.items.length === 1 ? '' : 'es'}
+                    <ChevronDown size={16} className="transition-transform group-open:rotate-180" />
+                  </span>
+                </summary>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left text-sm">
+                    <Thead>
+                      <tr>
+                        <Th className="w-8">
+                          <input
+                            type="checkbox"
+                            checked={groupAllSelected}
+                            onChange={(e) => { e.stopPropagation(); toggleSelectGroup(g.items); }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </Th>
+                        <Th>Nombre</Th>
+                        <Th>Contacto</Th>
+                        <Th>Correo</Th>
+                        <Th>Teléfono</Th>
+                        <Th>Tipo</Th>
+                        <Th>Estado</Th>
+                        <Th>Acciones</Th>
+                      </tr>
+                    </Thead>
+                    <tbody>
+                      {g.items.map((s) => (
+                        <Tr key={s.id}>
+                          <Td>
+                            <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} />
+                          </Td>
+                          <Td className="font-medium text-slate-800">{s.name}</Td>
+                          <Td>{s.contact_name ?? '—'}</Td>
+                          <Td>{s.email ?? '—'}</Td>
+                          <Td>{s.phone ?? '—'}</Td>
+                          <Td>{s.provider_type ?? s.category ?? '—'}</Td>
+                          <Td><Badge status={s.status} /></Td>
+                          <Td>
+                            <div className="flex gap-1.5">
+                              <Button size="sm" variant="outline" onClick={() => { setEditing(s); setShowForm(true); }}>Editar</Button>
+                              <Button size="sm" variant="danger" onClick={() => setDeleteTarget(s)}>Eliminar</Button>
+                            </div>
+                          </Td>
+                        </Tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            );
+          })}
+        </div>
       )}
 
       <Dialog
