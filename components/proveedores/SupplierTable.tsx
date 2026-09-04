@@ -11,11 +11,13 @@ import { Dialog } from '@/components/ui/Dialog';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import { createSupplier, updateSupplier, deleteSupplier, bulkDeleteSuppliers } from '@/actions/suppliers.actions';
-import type { Supplier } from '@/lib/types';
+import { STATUS_LABELS } from '@/lib/utils';
+import type { Supplier, Zone } from '@/lib/types';
 
-export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
+export function SupplierTable({ suppliers, zones }: { suppliers: Supplier[]; zones: Zone[] }) {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState('all');
+  const [zoneFilter, setZoneFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Supplier | null>(null);
@@ -32,14 +34,15 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
   const filtered = useMemo(() => {
     return suppliers.filter((s) => {
       if (statusFilter !== 'all' && s.status !== statusFilter) return false;
+      if (zoneFilter !== 'all' && s.zone_id !== zoneFilter) return false;
       if (query) {
         const q = query.toLowerCase();
-        const haystack = `${s.name} ${s.contact_name ?? ''} ${s.email ?? ''} ${s.category ?? ''}`.toLowerCase();
+        const haystack = `${s.name} ${s.contact_name ?? ''} ${s.email ?? ''} ${s.category ?? ''} ${s.business_name ?? ''} ${s.ruc ?? ''} ${s.zone_city ?? ''} ${s.zone?.name ?? ''}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
     });
-  }, [suppliers, statusFilter, query]);
+  }, [suppliers, statusFilter, zoneFilter, query]);
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id));
   const selectedCount = selectedIds.size;
@@ -81,13 +84,22 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
   }
 
   const exportRows = filtered.map((s) => ({
-    Nombre: s.name,
+    'Nombre comercial': s.name,
+    'Razón social': s.business_name ?? '',
+    RUC: s.ruc ?? '',
+    'Tipo de proveedor': s.provider_type ?? s.category ?? '',
     Contacto: s.contact_name ?? '',
     Correo: s.email ?? '',
     Teléfono: s.phone ?? '',
     Dirección: s.address ?? '',
-    Categoría: s.category ?? '',
-    Estado: s.status === 'active' ? 'Activo' : 'Inactivo',
+    Zona: s.zone?.name ?? '',
+    'Zona / Ciudad': s.zone_city ?? '',
+    'Servicios que ofrece': s.services ?? '',
+    'Cobertura / Ciudades': s.coverage ?? '',
+    'Forma de pago': s.payment_method ?? '',
+    'Tiempo de entrega': s.delivery_time ?? '',
+    'Emite factura': s.issues_invoice === null ? '' : s.issues_invoice ? 'Sí' : 'No',
+    Estado: STATUS_LABELS[s.status] ?? s.status,
     Notas: s.notes ?? ''
   }));
 
@@ -123,11 +135,17 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          <Input placeholder="Buscar por nombre, contacto, correo o categoría…" value={query} onChange={(e) => setQuery(e.target.value)} className="w-72" />
+          <Input placeholder="Buscar por nombre, RUC, contacto, correo, zona…" value={query} onChange={(e) => setQuery(e.target.value)} className="w-72" />
+          <Select value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)} className="w-44">
+            <option value="all">Todas las zonas</option>
+            {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+          </Select>
           <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-40">
             <option value="all">Todos los estados</option>
             <option value="active">Activo</option>
             <option value="inactive">Inactivo</option>
+            <option value="alternative">Alternativo</option>
+            <option value="pending_validation">Por validar</option>
           </Select>
         </div>
         <div className="flex gap-2">
@@ -161,10 +179,11 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
                 <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAllFiltered} />
               </Th>
               <Th>Nombre</Th>
+              <Th>Zona</Th>
               <Th>Contacto</Th>
               <Th>Correo</Th>
               <Th>Teléfono</Th>
-              <Th>Categoría</Th>
+              <Th>Tipo</Th>
               <Th>Estado</Th>
               <Th>Acciones</Th>
             </tr>
@@ -176,10 +195,11 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
                   <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} />
                 </Td>
                 <Td className="font-medium text-slate-800">{s.name}</Td>
+                <Td>{s.zone?.name ?? s.zone_city ?? '—'}</Td>
                 <Td>{s.contact_name ?? '—'}</Td>
                 <Td>{s.email ?? '—'}</Td>
                 <Td>{s.phone ?? '—'}</Td>
-                <Td>{s.category ?? '—'}</Td>
+                <Td>{s.provider_type ?? s.category ?? '—'}</Td>
                 <Td><Badge status={s.status} /></Td>
                 <Td>
                   <div className="flex gap-1.5">
@@ -199,32 +219,91 @@ export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
         title={editing ? 'Editar proveedor' : 'Nuevo proveedor'}
       >
         <form action={handleSubmit} className="space-y-4">
-          <FormField label="Nombre del proveedor">
-            <Input name="name" required defaultValue={editing?.name ?? ''} placeholder="Razón social o nombre comercial" />
-          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Nombre comercial">
+              <Input name="name" required defaultValue={editing?.name ?? ''} />
+            </FormField>
+            <FormField label="Razón social">
+              <Input name="business_name" defaultValue={editing?.business_name ?? ''} />
+            </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="RUC">
+              <Input name="ruc" defaultValue={editing?.ruc ?? ''} />
+            </FormField>
+            <FormField label="Tipo de proveedor">
+              <Select name="provider_type" defaultValue={editing?.provider_type ?? ''}>
+                <option value="">Selecciona…</option>
+                <option value="Impresión">Impresión</option>
+                <option value="Publicidad">Publicidad</option>
+                <option value="Impresión y publicidad">Impresión y publicidad</option>
+                <option value="Otro">Otro</option>
+              </Select>
+            </FormField>
+          </div>
           <FormField label="Persona de contacto">
             <Input name="contact_name" defaultValue={editing?.contact_name ?? ''} />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Correo">
-              <Input name="email" type="email" defaultValue={editing?.email ?? ''} />
+              <Input name="email" defaultValue={editing?.email ?? ''} />
             </FormField>
-            <FormField label="Teléfono">
+            <FormField label="Teléfono / WhatsApp">
               <Input name="phone" defaultValue={editing?.phone ?? ''} />
             </FormField>
           </div>
           <FormField label="Dirección">
             <Input name="address" defaultValue={editing?.address ?? ''} />
           </FormField>
-          <FormField label="Categoría">
-            <Input name="category" defaultValue={editing?.category ?? ''} placeholder="Ej: Material POP, Logística, Impresión…" />
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Zona">
+              <Select name="zone_id" defaultValue={editing?.zone_id ?? ''}>
+                <option value="">Sin zona específica</option>
+                {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Zona / Ciudad (detalle)">
+              <Input name="zone_city" defaultValue={editing?.zone_city ?? ''} placeholder="Ej: Naranjal, Huaquillas…" />
+            </FormField>
+          </div>
+          <FormField label="Servicios que ofrece">
+            <Textarea name="services" rows={2} defaultValue={editing?.services ?? ''} />
           </FormField>
-          <FormField label="Estado">
-            <Select name="status" defaultValue={editing?.status ?? 'active'}>
-              <option value="active">Activo</option>
-              <option value="inactive">Inactivo</option>
-            </Select>
+          <FormField label="Cobertura / Ciudades">
+            <Input name="coverage" defaultValue={editing?.coverage ?? ''} />
           </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Forma de pago">
+              <Select name="payment_method" defaultValue={editing?.payment_method ?? ''}>
+                <option value="">Selecciona…</option>
+                <option value="Contado">Contado</option>
+                <option value="Credito">Crédito</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="Tarjeta">Tarjeta</option>
+                <option value="Otro">Otro</option>
+              </Select>
+            </FormField>
+            <FormField label="Tiempo de entrega">
+              <Input name="delivery_time" defaultValue={editing?.delivery_time ?? ''} />
+            </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Emite factura">
+              <Select name="issues_invoice" defaultValue={editing?.issues_invoice === null || editing?.issues_invoice === undefined ? '' : String(editing.issues_invoice)}>
+                <option value="">Selecciona…</option>
+                <option value="true">Sí</option>
+                <option value="false">No</option>
+              </Select>
+            </FormField>
+            <FormField label="Estado">
+              <Select name="status" defaultValue={editing?.status ?? 'active'}>
+                <option value="active">Activo</option>
+                <option value="inactive">Inactivo</option>
+                <option value="alternative">Alternativo</option>
+                <option value="pending_validation">Por validar</option>
+              </Select>
+            </FormField>
+          </div>
           <FormField label="Notas (opcional)">
             <Textarea name="notes" rows={2} defaultValue={editing?.notes ?? ''} />
           </FormField>

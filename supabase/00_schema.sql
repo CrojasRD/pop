@@ -19,7 +19,7 @@ create type movement_type as enum ('delivery', 'return', 'write_off', 'repair', 
 create type event_status as enum ('pending', 'approved', 'rejected', 'cancelled', 'finished');
 create type truck_status as enum ('scheduled', 'cancelled');
 create type asset_status as enum ('good', 'damaged', 'maintenance');
-create type supplier_status as enum ('active', 'inactive');
+create type supplier_status as enum ('active', 'inactive', 'alternative', 'pending_validation');
 create type expense_category as enum ('material_pop', 'logistica', 'camion', 'mantenimiento', 'personal', 'proveedores', 'otros');
 create type request_urgency as enum ('low', 'medium', 'high');
 create type replenishment_status as enum ('pending', 'approved', 'rejected', 'delivered');
@@ -281,7 +281,7 @@ create table public.acquisition_requests (
 -- ---------------------------------------------------------------------
 create table public.suppliers (
   id uuid primary key default gen_random_uuid(),
-  name text not null,
+  name text not null, -- nombre comercial
   contact_name text,
   email text,
   phone text,
@@ -289,6 +289,16 @@ create table public.suppliers (
   category text, -- qué provee: Impresos, Rompetráficos, Transporte, Publicidad, etc.
   notes text,
   status supplier_status not null default 'active',
+  zone_id uuid references public.zones(id) on delete set null, -- informativo, no restringe acceso (Proveedores es solo-admin)
+  zone_city text, -- ciudad/detalle dentro de la zona (ej. Naranjal, Huaquillas)
+  business_name text, -- razón social
+  ruc text,
+  provider_type text, -- tipo de proveedor: Impresión, Publicidad, Impresión y publicidad, Otro
+  services text, -- servicios que ofrece
+  coverage text, -- cobertura / ciudades que atiende
+  payment_method text, -- forma de pago: Contado, Credito, Transferencia, Tarjeta, Otro
+  delivery_time text, -- tiempo de entrega estimado
+  issues_invoice boolean, -- si emite factura
   created_by uuid references public.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

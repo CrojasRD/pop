@@ -85,12 +85,25 @@ export type AssetInput = z.infer<typeof assetSchema>;
 export const supplierSchema = z.object({
   name: z.string().min(2, 'El nombre del proveedor es obligatorio'),
   contact_name: z.string().optional(),
-  email: z.string().email('Correo inválido').optional().or(z.literal('')),
+  email: z.string().optional(),
   phone: z.string().optional(),
   address: z.string().optional(),
   category: z.string().optional(),
   notes: z.string().optional(),
-  status: z.enum(['active', 'inactive']).default('active')
+  status: z.enum(['active', 'inactive', 'alternative', 'pending_validation']).default('active'),
+  zone_id: z.string().uuid().optional().or(z.literal('')),
+  zone_city: z.string().optional(),
+  business_name: z.string().optional(),
+  ruc: z.string().optional(),
+  provider_type: z.string().optional(),
+  services: z.string().optional(),
+  coverage: z.string().optional(),
+  payment_method: z.string().optional(),
+  delivery_time: z.string().optional(),
+  issues_invoice: z
+    .enum(['true', 'false', ''])
+    .optional()
+    .transform((v) => (v === 'true' ? true : v === 'false' ? false : undefined))
 });
 export type SupplierInput = z.infer<typeof supplierSchema>;
 

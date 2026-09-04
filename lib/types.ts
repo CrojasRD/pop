@@ -12,7 +12,7 @@ export type MovementType = 'delivery' | 'return' | 'write_off' | 'repair' | 'adj
 export type EventStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'finished';
 export type TruckStatus = 'scheduled' | 'cancelled';
 export type AssetStatus = 'good' | 'damaged' | 'maintenance';
-export type SupplierStatus = 'active' | 'inactive';
+export type SupplierStatus = 'active' | 'inactive' | 'alternative' | 'pending_validation';
 export type ExpenseCategory =
   | 'material_pop'
   | 'logistica'
@@ -212,9 +212,20 @@ export interface Supplier {
   category: string | null;
   notes: string | null;
   status: SupplierStatus;
+  zone_id: string | null;
+  zone_city: string | null;
+  business_name: string | null;
+  ruc: string | null;
+  provider_type: string | null;
+  services: string | null;
+  coverage: string | null;
+  payment_method: string | null;
+  delivery_time: string | null;
+  issues_invoice: boolean | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  zone?: Zone | null;
 }
 
 export interface Expense {

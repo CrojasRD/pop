@@ -23,6 +23,16 @@ export async function createSupplier(input: unknown): Promise<ActionResult> {
     address: parsed.data.address || null,
     category: parsed.data.category || null,
     notes: parsed.data.notes || null,
+    zone_id: parsed.data.zone_id || null,
+    zone_city: parsed.data.zone_city || null,
+    business_name: parsed.data.business_name || null,
+    ruc: parsed.data.ruc || null,
+    provider_type: parsed.data.provider_type || null,
+    services: parsed.data.services || null,
+    coverage: parsed.data.coverage || null,
+    payment_method: parsed.data.payment_method || null,
+    delivery_time: parsed.data.delivery_time || null,
+    issues_invoice: parsed.data.issues_invoice ?? null,
     created_by: admin.id
   };
 
@@ -40,10 +50,14 @@ export async function updateSupplier(id: string, input: unknown): Promise<Action
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 
   const supabase = createClient();
-  const { error } = await supabase.from('suppliers').update(parsed.data).eq('id', id);
+  const payload = {
+    ...parsed.data,
+    zone_id: parsed.data.zone_id !== undefined ? parsed.data.zone_id || null : undefined
+  };
+  const { error } = await supabase.from('suppliers').update(payload).eq('id', id);
   if (error) return { error: error.message };
 
-  await logAudit({ action: 'update', module: 'suppliers', recordId: id, newValue: parsed.data });
+  await logAudit({ action: 'update', module: 'suppliers', recordId: id, newValue: payload });
   revalidatePath('/proveedores');
   return { success: true };
 }

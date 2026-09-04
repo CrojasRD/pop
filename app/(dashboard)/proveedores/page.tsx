@@ -6,7 +6,10 @@ export default async function ProveedoresPage() {
   await requireAdmin();
   const supabase = createClient();
 
-  const { data: suppliers } = await supabase.from('suppliers').select('*').order('name');
+  const [{ data: suppliers }, { data: zones }] = await Promise.all([
+    supabase.from('suppliers').select('*, zone:zones(*)').order('name'),
+    supabase.from('zones').select('*').neq('name', 'COMERCIAL').order('name')
+  ]);
 
   return (
     <div className="space-y-5">
@@ -14,7 +17,7 @@ export default async function ProveedoresPage() {
         <h1 className="text-xl font-semibold text-slate-800">Proveedores</h1>
         <p className="text-sm text-slate-500">Registro de proveedores de la empresa. Módulo exclusivo de administrador.</p>
       </div>
-      <SupplierTable suppliers={(suppliers as any) ?? []} />
+      <SupplierTable suppliers={(suppliers as any) ?? []} zones={(zones as any) ?? []} />
     </div>
   );
 }
