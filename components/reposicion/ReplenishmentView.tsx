@@ -12,17 +12,15 @@ import { Dialog } from '@/components/ui/Dialog';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import { formatDate } from '@/lib/utils';
 import { createReplenishmentRequest, reviewReplenishmentRequest, deliverReplenishmentRequest } from '@/actions/replenishment.actions';
-import type { AppUser, PopItem, ReplenishmentRequest, Store, Zone } from '@/lib/types';
+import type { AppUser, PopItem, ReplenishmentRequest, Store } from '@/lib/types';
 
 export function ReplenishmentView({
   requests,
-  zones,
   stores,
   popItems,
   user
 }: {
   requests: ReplenishmentRequest[];
-  zones: Zone[];
   stores: Store[];
   popItems: PopItem[];
   user: AppUser;
@@ -157,21 +155,6 @@ export function ReplenishmentView({
 
       <Dialog open={showCreate} onClose={() => setShowCreate(false)} title="Nueva solicitud de reposición">
         <form action={handleCreate} className="space-y-4">
-          <FormField label="Zona">
-            {user.role === 'zonal_manager' ? (
-              <>
-                <Select defaultValue={user.zone_id ?? ''} disabled>
-                  <option value={user.zone_id ?? ''}>{zones.find((z) => z.id === user.zone_id)?.name ?? '—'}</option>
-                </Select>
-                <input type="hidden" name="zone_id" value={user.zone_id ?? ''} />
-              </>
-            ) : (
-              <Select name="zone_id" required defaultValue="">
-                <option value="" disabled>Selecciona una zona</option>
-                {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
-              </Select>
-            )}
-          </FormField>
           <FormField label="Joyería(s)">
             <MultiSearchSelect
               name="store_ids"

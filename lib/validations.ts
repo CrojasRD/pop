@@ -124,7 +124,6 @@ export type ExpenseInput = z.infer<typeof expenseSchema>;
 // define la cantidad exclusivamente al momento de aprobar la solicitud
 // (ver `replenishmentApprovalSchema`).
 export const replenishmentSchema = z.object({
-  zone_id: z.string().uuid('Selecciona una zona'),
   store_ids: z.array(z.string().uuid()).min(1, 'Selecciona al menos una joyería'),
   pop_item_id: z.string().uuid('Selecciona un material'),
   reason: z.string().min(3, 'Describe el motivo'),

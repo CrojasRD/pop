@@ -12,13 +12,20 @@ export async function createReplenishmentRequest(input: unknown): Promise<Action
   const parsed = replenishmentSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 
-  if (user.role === 'zonal_manager' && parsed.data.zone_id !== user.zone_id) {
-    return { error: 'Solo puedes solicitar reposición para tu propia zona' };
-  }
-
   const supabase = createClient();
   const { store_ids, ...rest } = parsed.data;
-  const payloads = store_ids.map((store_id) => ({ ...rest, store_id, requested_by: user.id, status: 'pending' as const }));
+
+  // La zona de cada solicitud se toma de la propia joyería, no se pide aparte
+  // en el formulario. RLS en `stores` ya limita lo que un jefe zonal puede
+  // leer a su propia zona, así que si pidió una joyería fuera de su zona
+  // simplemente no vendrá en `storesData` y se detecta abajo.
+  const { data: storesData, error: storesError } = await supabase.from('stores').select('id, zone_id').in('id', store_ids);
+  if (storesError) return { error: storesError.message };
+  if (!storesData || storesData.length !== store_ids.length) {
+    return { error: 'Una o más joyerías no son válidas o no tienes acceso a ellas' };
+  }
+
+  const payloads = storesData.map((s) => ({ ...rest, store_id: s.id, zone_id: s.zone_id, requested_by: user.id, status: 'pending' as const }));
   const { data, error } = await supabase.from('replenishment_requests').insert(payloads).select('id');
   if (error) return { error: error.message };
 
