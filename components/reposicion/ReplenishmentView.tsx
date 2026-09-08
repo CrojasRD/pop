@@ -7,6 +7,7 @@ import { Table, Thead, Th, Tr, Td, EmptyState } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea, FormField } from '@/components/ui/Input';
+import { MultiSearchSelect } from '@/components/ui/MultiSearchSelect';
 import { Dialog } from '@/components/ui/Dialog';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import { formatDate } from '@/lib/utils';
@@ -53,7 +54,8 @@ export function ReplenishmentView({
   async function handleCreate(formData: FormData) {
     setLoading(true);
     setError(null);
-    const input = Object.fromEntries(formData.entries());
+    const input: Record<string, unknown> = Object.fromEntries(formData.entries());
+    input.store_ids = formData.getAll('store_ids');
     const result = await createReplenishmentRequest(input);
     setLoading(false);
     if (result.error) setError(result.error);
@@ -170,12 +172,17 @@ export function ReplenishmentView({
               </Select>
             )}
           </FormField>
-          <FormField label="Joyería">
-            <Select name="store_id" required defaultValue="">
-              <option value="" disabled>Selecciona una joyería</option>
-              {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
+          <FormField label="Joyería(s)">
+            <MultiSearchSelect
+              name="store_ids"
+              placeholder="Escribe para buscar una joyería…"
+              emptyLabel="No se encontró ninguna joyería"
+              options={stores.map((s) => ({ value: s.id, label: s.name }))}
+            />
           </FormField>
+          <p className="text-xs text-slate-400 -mt-2">
+            Si eliges varias joyerías, se crea una solicitud por cada una.
+          </p>
           <FormField label="Material POP">
             <Select name="pop_item_id" required defaultValue="">
               <option value="" disabled>Selecciona un material</option>

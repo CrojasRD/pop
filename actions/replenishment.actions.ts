@@ -17,11 +17,14 @@ export async function createReplenishmentRequest(input: unknown): Promise<Action
   }
 
   const supabase = createClient();
-  const payload = { ...parsed.data, requested_by: user.id, status: 'pending' as const };
-  const { data, error } = await supabase.from('replenishment_requests').insert(payload).select('id').single();
+  const { store_ids, ...rest } = parsed.data;
+  const payloads = store_ids.map((store_id) => ({ ...rest, store_id, requested_by: user.id, status: 'pending' as const }));
+  const { data, error } = await supabase.from('replenishment_requests').insert(payloads).select('id');
   if (error) return { error: error.message };
 
-  await logAudit({ action: 'create', module: 'replenishment_requests', recordId: data.id, newValue: payload });
+  for (const row of data ?? []) {
+    await logAudit({ action: 'create', module: 'replenishment_requests', recordId: row.id, newValue: rest });
+  }
   revalidatePath('/reposicion');
   return { success: true };
 }
