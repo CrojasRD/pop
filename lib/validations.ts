@@ -165,7 +165,7 @@ export const shipmentDeliverySchema = z.object({
 
 export const acquisitionSchema = z.object({
   zone_id: z.string().uuid('Selecciona una zona'),
-  store_id: z.string().uuid().optional().or(z.literal('')),
+  store_ids: z.array(z.string().uuid()).optional().default([]),
   product_name: z.string().min(2, 'El nombre del producto es obligatorio'),
   category_id: z.string().uuid('Selecciona una categoría'),
   requested_quantity: z.coerce.number().int().min(1),

@@ -18,18 +18,28 @@ export async function createAcquisitionRequest(input: unknown): Promise<ActionRe
   }
 
   const supabase = createClient();
-  const payload = {
-    ...parsed.data,
-    store_id: parsed.data.store_id || null,
+  const { store_ids, ...rest } = parsed.data;
+  const base = {
+    ...rest,
     related_event_id: parsed.data.related_event_id || null,
     attachment_url: parsed.data.attachment_url || null,
     requested_by: user.id,
     status: 'pending' as const
   };
-  const { data, error } = await supabase.from('acquisition_requests').insert(payload).select('id').single();
+
+  // Sin joyería específica: una sola solicitud a nivel de zona. Con una o
+  // varias joyerías elegidas: una solicitud por cada una (mismo patrón que
+  // Reposición y Envíos).
+  const payloads = store_ids.length > 0
+    ? store_ids.map((store_id) => ({ ...base, store_id }))
+    : [{ ...base, store_id: null }];
+
+  const { data, error } = await supabase.from('acquisition_requests').insert(payloads).select('id');
   if (error) return { error: error.message };
 
-  await logAudit({ action: 'create', module: 'acquisition_requests', recordId: data.id, newValue: payload });
+  for (const row of data ?? []) {
+    await logAudit({ action: 'create', module: 'acquisition_requests', recordId: row.id, newValue: base });
+  }
   revalidatePath('/adquisicion');
   return { success: true };
 }
