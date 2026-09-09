@@ -6,11 +6,12 @@ export default async function ReposicionPage() {
   const user = await requireUser();
   const supabase = createClient();
 
-  const [{ data: requests }, { data: stores }, { data: popItems }] = await Promise.all([
+  const [{ data: requests }, { data: zones }, { data: stores }, { data: popItems }] = await Promise.all([
     supabase
       .from('replenishment_requests')
-      .select('*, store:stores(*), pop_item:pop_items(*), requester:users!replenishment_requests_requested_by_fkey(*)')
+      .select('*, zone:zones(*), store:stores(*), pop_item:pop_items(*), requester:users!replenishment_requests_requested_by_fkey(*)')
       .order('created_at', { ascending: false }),
+    supabase.from('zones').select('*').neq('name', 'COMERCIAL').order('name'),
     supabase.from('stores').select('*').order('name'),
     supabase.from('pop_items').select('*').order('name')
   ]);
@@ -25,6 +26,7 @@ export default async function ReposicionPage() {
       </div>
       <ReplenishmentView
         requests={(requests as any) ?? []}
+        zones={(zones as any) ?? []}
         stores={(stores as any) ?? []}
         popItems={(popItems as any) ?? []}
         user={user}

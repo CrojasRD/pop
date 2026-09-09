@@ -265,6 +265,7 @@ export interface ReplenishmentRequest {
   updated_at: string;
   pop_item?: PopItem | null;
   store?: Store | null;
+  zone?: Zone | null;
   requester?: AppUser | null;
 }
 

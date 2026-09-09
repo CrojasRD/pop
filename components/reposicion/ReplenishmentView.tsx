@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus } from 'lucide-react';
-import { Table, Thead, Th, Tr, Td, EmptyState } from '@/components/ui/Table';
+import { ChevronDown, Plus } from 'lucide-react';
+import { Thead, Th, Tr, Td, EmptyState } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea, FormField } from '@/components/ui/Input';
@@ -12,15 +12,17 @@ import { Dialog } from '@/components/ui/Dialog';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import { formatDate } from '@/lib/utils';
 import { createReplenishmentRequest, reviewReplenishmentRequest, deliverReplenishmentRequest } from '@/actions/replenishment.actions';
-import type { AppUser, PopItem, ReplenishmentRequest, Store } from '@/lib/types';
+import type { AppUser, PopItem, ReplenishmentRequest, Store, Zone } from '@/lib/types';
 
 export function ReplenishmentView({
   requests,
+  zones,
   stores,
   popItems,
   user
 }: {
   requests: ReplenishmentRequest[];
+  zones: Zone[];
   stores: Store[];
   popItems: PopItem[];
   user: AppUser;
@@ -39,6 +41,28 @@ export function ReplenishmentView({
     () => requests.filter((r) => statusFilter === 'all' || r.status === statusFilter),
     [requests, statusFilter]
   );
+
+  const groups = useMemo(() => {
+    const byZone = new Map<string, ReplenishmentRequest[]>();
+    filtered.forEach((r) => {
+      const key = r.zone_id ?? 'sin-zona';
+      const list = byZone.get(key) ?? [];
+      list.push(r);
+      byZone.set(key, list);
+    });
+    const zoneOrder = zones.map((z) => z.id);
+    return Array.from(byZone.entries())
+      .map(([zoneId, items]) => ({
+        zoneId,
+        zoneName: zoneId === 'sin-zona' ? 'Sin zona' : zones.find((z) => z.id === zoneId)?.name ?? items[0]?.zone?.name ?? 'Sin zona',
+        items
+      }))
+      .sort((a, b) => {
+        if (a.zoneId === 'sin-zona') return 1;
+        if (b.zoneId === 'sin-zona') return -1;
+        return zoneOrder.indexOf(a.zoneId) - zoneOrder.indexOf(b.zoneId);
+      });
+  }, [filtered, zones]);
 
   const exportRows = filtered.map((r) => ({
     Joyería: r.store?.name ?? '',
@@ -112,45 +136,60 @@ export function ReplenishmentView({
       {filtered.length === 0 ? (
         <EmptyState message="No hay solicitudes de reposición." />
       ) : (
-        <Table>
-          <Thead>
-            <tr>
-              <Th>Joyería</Th>
-              <Th>Material</Th>
-              <Th>Cantidad</Th>
-              <Th>Urgencia</Th>
-              <Th>Estado</Th>
-              <Th>Fecha</Th>
-              <Th></Th>
-            </tr>
-          </Thead>
-          <tbody>
-            {filtered.map((r) => (
-              <Tr key={r.id}>
-                <Td>{r.store?.name ?? '—'}</Td>
-                <Td>{r.pop_item?.name ?? '—'}</Td>
-                <Td>{r.requested_quantity ?? <span className="text-slate-400">Por definir</span>}</Td>
-                <Td><Badge status={r.urgency} /></Td>
-                <Td><Badge status={r.status} /></Td>
-                <Td>{formatDate(r.created_at)}</Td>
-                <Td>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setReviewing(r);
-                      setComment(r.admin_comment ?? '');
-                      setApprovalQty(r.requested_quantity ? String(r.requested_quantity) : '');
-                      setApprovalError(null);
-                    }}
-                  >
-                    Ver
-                  </Button>
-                </Td>
-              </Tr>
-            ))}
-          </tbody>
-        </Table>
+        <div className="space-y-3">
+          {groups.map((g) => (
+            <details key={g.zoneId} open className="group overflow-hidden rounded-xl border border-slate-200">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 [&::-webkit-details-marker]:hidden">
+                <span>{g.zoneName}</span>
+                <span className="flex items-center gap-2 text-xs font-normal text-slate-400">
+                  {g.items.length} solicitud{g.items.length === 1 ? '' : 'es'}
+                  <ChevronDown size={16} className="transition-transform group-open:rotate-180" />
+                </span>
+              </summary>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-sm">
+                  <Thead>
+                    <tr>
+                      <Th>Joyería</Th>
+                      <Th>Material</Th>
+                      <Th>Cantidad</Th>
+                      <Th>Urgencia</Th>
+                      <Th>Estado</Th>
+                      <Th>Fecha</Th>
+                      <Th></Th>
+                    </tr>
+                  </Thead>
+                  <tbody>
+                    {g.items.map((r) => (
+                      <Tr key={r.id}>
+                        <Td>{r.store?.name ?? '—'}</Td>
+                        <Td>{r.pop_item?.name ?? '—'}</Td>
+                        <Td>{r.requested_quantity ?? <span className="text-slate-400">Por definir</span>}</Td>
+                        <Td><Badge status={r.urgency} /></Td>
+                        <Td><Badge status={r.status} /></Td>
+                        <Td>{formatDate(r.created_at)}</Td>
+                        <Td>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setReviewing(r);
+                              setComment(r.admin_comment ?? '');
+                              setApprovalQty(r.requested_quantity ? String(r.requested_quantity) : '');
+                              setApprovalError(null);
+                            }}
+                          >
+                            Ver
+                          </Button>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          ))}
+        </div>
       )}
 
       <Dialog open={showCreate} onClose={() => setShowCreate(false)} title="Nueva solicitud de reposición">
