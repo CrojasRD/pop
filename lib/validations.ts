@@ -137,6 +137,32 @@ export const replenishmentApprovalSchema = z.object({
 });
 export type ReplenishmentApprovalInput = z.infer<typeof replenishmentApprovalSchema>;
 
+const shipmentItemSchema = z.object({
+  pop_item_id: z.string().uuid(),
+  quantity: z.coerce.number().int().min(1, 'La cantidad debe ser mayor a 0')
+});
+
+export const shipmentSchema = z.object({
+  store_ids: z.array(z.string().uuid()).min(1, 'Selecciona al menos una joyería'),
+  items: z
+    .string()
+    .transform((val, ctx) => {
+      try {
+        return JSON.parse(val);
+      } catch {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Materiales inválidos' });
+        return z.NEVER;
+      }
+    })
+    .pipe(z.array(shipmentItemSchema).min(1, 'Agrega al menos un material')),
+  notes: z.string().optional()
+});
+export type ShipmentInput = z.infer<typeof shipmentSchema>;
+
+export const shipmentDeliverySchema = z.object({
+  delivery_notes: z.string().optional()
+});
+
 export const acquisitionSchema = z.object({
   zone_id: z.string().uuid('Selecciona una zona'),
   store_id: z.string().uuid().optional().or(z.literal('')),

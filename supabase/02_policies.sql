@@ -14,6 +14,7 @@ alter table public.events enable row level security;
 alter table public.truck_schedule enable row level security;
 alter table public.assets enable row level security;
 alter table public.replenishment_requests enable row level security;
+alter table public.material_shipments enable row level security;
 alter table public.acquisition_requests enable row level security;
 alter table public.suppliers enable row level security;
 alter table public.expenses enable row level security;
@@ -157,6 +158,22 @@ create policy replenishment_update_owner on public.replenishment_requests for up
 create policy replenishment_delete_admin on public.replenishment_requests for delete
   using (public.is_admin());
 
+-- MATERIAL SHIPMENTS ---------------------------------------------------------------
+-- Envío de materiales: lo crea el administrador; el jefe zonal solo confirma
+-- la entrega (cambia status de 'sent' a 'delivered') de los renglones de su zona.
+create policy shipments_select on public.material_shipments for select
+  using (public.is_admin() or zone_id = public.current_user_zone_id());
+create policy shipments_insert_admin on public.material_shipments for insert
+  with check (public.is_admin());
+create policy shipments_update_admin on public.material_shipments for update
+  using (public.is_admin())
+  with check (public.is_admin());
+create policy shipments_update_confirm_delivery on public.material_shipments for update
+  using (public.current_user_role() = 'zonal_manager' and zone_id = public.current_user_zone_id() and status = 'sent')
+  with check (public.current_user_role() = 'zonal_manager' and zone_id = public.current_user_zone_id());
+create policy shipments_delete_admin on public.material_shipments for delete
+  using (public.is_admin());
+
 -- ACQUISITION REQUESTS -----------------------------------------------------------
 create policy acquisition_select on public.acquisition_requests for select
   using (public.is_admin() or zone_id = public.current_user_zone_id());
@@ -205,5 +222,6 @@ grant insert, update, delete on public.truck_schedule to authenticated;
 grant delete on public.assets to authenticated;
 grant insert on public.pop_categories to authenticated;
 grant insert, update on public.pop_items to authenticated;
+grant insert, update, delete on public.material_shipments to authenticated;
 grant insert, update on public.zones to authenticated;
 grant select on public.audit_logs to authenticated;

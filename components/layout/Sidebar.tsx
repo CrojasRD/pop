@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Package, Store, CalendarDays, RefreshCcw,
   ShoppingCart, Users, BarChart3, History, Settings, Truck, Boxes,
-  Building2, DollarSign
+  Building2, DollarSign, Send
 } from 'lucide-react';
 import { NAV_ITEMS } from '@/lib/permissions';
 import type { UserRole } from '@/lib/types';
@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 const ICONS: Record<string, any> = {
   LayoutDashboard, Package, Store, CalendarDays, RefreshCcw,
   ShoppingCart, Users, BarChart3, History, Settings, Truck, Boxes,
-  Building2, DollarSign
+  Building2, DollarSign, Send
 };
 
 export function Sidebar({ role }: { role: UserRole }) {

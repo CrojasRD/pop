@@ -1,4 +1,4 @@
-import type { AppUser, EventRecord, ReplenishmentRequest, AcquisitionRequest } from '@/lib/types';
+import type { AppUser, EventRecord, ReplenishmentRequest, AcquisitionRequest, MaterialShipment } from '@/lib/types';
 
 export const isAdmin = (user: AppUser) => user.role === 'admin';
 export const isZonalManager = (user: AppUser) => user.role === 'zonal_manager';
@@ -55,6 +55,17 @@ export function canEditAcquisition(user: AppUser, req: AcquisitionRequest) {
   return req.requested_by === user.id && req.status === 'pending';
 }
 
+/** Enviar materiales (crear un envío) es exclusivo del administrador. */
+export function canCreateShipment(user: AppUser) {
+  return isAdmin(user);
+}
+
+/** Confirmar la entrega de un envío: admin siempre, o el jefe zonal de esa zona mientras siga pendiente. */
+export function canConfirmShipmentDelivery(user: AppUser, shipment: MaterialShipment) {
+  if (isAdmin(user)) return shipment.status === 'sent';
+  return shipment.status === 'sent' && shipment.zone_id === user.zone_id;
+}
+
 export const NAV_ITEMS = [
   { href: '/dashboard', label: 'Inicio', icon: 'LayoutDashboard', roles: ['admin', 'zonal_manager'] },
   { href: '/inventario', label: 'Inventario POP', icon: 'Package', roles: ['admin', 'zonal_manager'] },
@@ -63,6 +74,7 @@ export const NAV_ITEMS = [
   { href: '/camion', label: 'Camión', icon: 'Truck', roles: ['admin', 'zonal_manager'] },
   { href: '/activos', label: 'Activos', icon: 'Boxes', roles: ['admin', 'zonal_manager'] },
   { href: '/reposicion', label: 'Solicitudes de reposición', icon: 'RefreshCcw', roles: ['admin', 'zonal_manager'] },
+  { href: '/envios', label: 'Envíos', icon: 'Send', roles: ['admin', 'zonal_manager'] },
   { href: '/adquisicion', label: 'Solicitudes de adquisición', icon: 'ShoppingCart', roles: ['admin', 'zonal_manager'] },
   { href: '/proveedores', label: 'Proveedores', icon: 'Building2', roles: ['admin'] },
   { href: '/gastos', label: 'Gastos', icon: 'DollarSign', roles: ['admin'] },

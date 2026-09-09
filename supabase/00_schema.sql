@@ -23,6 +23,7 @@ create type supplier_status as enum ('active', 'inactive', 'alternative', 'pendi
 create type expense_category as enum ('material_pop', 'logistica', 'camion', 'mantenimiento', 'personal', 'proveedores', 'otros');
 create type request_urgency as enum ('low', 'medium', 'high');
 create type replenishment_status as enum ('pending', 'approved', 'rejected', 'delivered');
+create type shipment_status as enum ('sent', 'delivered');
 create type acquisition_status as enum ('pending', 'approved', 'rejected', 'in_purchase', 'received');
 create type audit_action as enum ('create', 'update', 'delete', 'approve', 'reject', 'deliver', 'replenish', 'bulk_upload', 'login');
 
@@ -252,6 +253,31 @@ create table public.replenishment_requests (
 );
 
 -- ---------------------------------------------------------------------
+-- MATERIAL SHIPMENTS  (envíos de materiales a joyerías, con confirmación
+-- de entrega por el jefe zonal — independiente de las solicitudes de
+-- reposición; un mismo envío puede llevar varios materiales a varias
+-- joyerías, y cada combinación joyería/material queda como una fila
+-- propia agrupada por batch_id)
+-- ---------------------------------------------------------------------
+create table public.material_shipments (
+  id uuid primary key default gen_random_uuid(),
+  batch_id uuid not null default gen_random_uuid(),
+  zone_id uuid references public.zones(id) on delete set null,
+  store_id uuid references public.stores(id) on delete set null,
+  pop_item_id uuid references public.pop_items(id) on delete set null,
+  quantity integer not null check (quantity > 0),
+  status shipment_status not null default 'sent',
+  notes text,
+  delivery_notes text,
+  sent_by uuid references public.users(id) on delete set null,
+  sent_at timestamptz not null default now(),
+  delivered_by uuid references public.users(id) on delete set null,
+  delivered_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------
 -- ACQUISITION REQUESTS  (solicitudes de adquisición de nuevos productos)
 -- ---------------------------------------------------------------------
 create table public.acquisition_requests (
@@ -355,6 +381,9 @@ create index idx_events_status on public.events(status);
 create index idx_events_dates on public.events(start_date, end_date);
 create index idx_replenishment_zone on public.replenishment_requests(zone_id);
 create index idx_replenishment_status on public.replenishment_requests(status);
+create index idx_shipments_batch on public.material_shipments(batch_id);
+create index idx_shipments_zone on public.material_shipments(zone_id);
+create index idx_shipments_status on public.material_shipments(status);
 create index idx_acquisition_zone on public.acquisition_requests(zone_id);
 create index idx_acquisition_status on public.acquisition_requests(status);
 create index idx_audit_module on public.audit_logs(module);

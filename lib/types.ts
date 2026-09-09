@@ -23,6 +23,7 @@ export type ExpenseCategory =
   | 'otros';
 export type RequestUrgency = 'low' | 'medium' | 'high';
 export type ReplenishmentStatus = 'pending' | 'approved' | 'rejected' | 'delivered';
+export type ShipmentStatus = 'sent' | 'delivered';
 export type AcquisitionStatus = 'pending' | 'approved' | 'rejected' | 'in_purchase' | 'received';
 export type AuditAction =
   | 'create'
@@ -265,6 +266,29 @@ export interface ReplenishmentRequest {
   pop_item?: PopItem | null;
   store?: Store | null;
   requester?: AppUser | null;
+}
+
+export interface MaterialShipment {
+  id: string;
+  batch_id: string;
+  zone_id: string | null;
+  store_id: string | null;
+  pop_item_id: string | null;
+  quantity: number;
+  status: ShipmentStatus;
+  notes: string | null;
+  delivery_notes: string | null;
+  sent_by: string | null;
+  sent_at: string;
+  delivered_by: string | null;
+  delivered_at: string | null;
+  created_at: string;
+  updated_at: string;
+  zone?: Zone | null;
+  store?: Store | null;
+  pop_item?: PopItem | null;
+  sender?: AppUser | null;
+  receiver?: AppUser | null;
 }
 
 export interface AcquisitionRequest {

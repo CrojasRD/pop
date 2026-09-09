@@ -33,6 +33,8 @@ create trigger trg_expenses_updated_at before update on public.expenses
   for each row execute function public.set_updated_at();
 create trigger trg_replenishment_updated_at before update on public.replenishment_requests
   for each row execute function public.set_updated_at();
+create trigger trg_shipments_updated_at before update on public.material_shipments
+  for each row execute function public.set_updated_at();
 create trigger trg_acquisition_updated_at before update on public.acquisition_requests
   for each row execute function public.set_updated_at();
 
