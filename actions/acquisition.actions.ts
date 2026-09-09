@@ -30,9 +30,8 @@ export async function createAcquisitionRequest(input: unknown): Promise<ActionRe
   // Sin joyería específica: una sola solicitud a nivel de zona. Con una o
   // varias joyerías elegidas: una solicitud por cada una (mismo patrón que
   // Reposición y Envíos).
-  const payloads = store_ids.length > 0
-    ? store_ids.map((store_id) => ({ ...base, store_id }))
-    : [{ ...base, store_id: null }];
+  const targetStoreIds: (string | null)[] = store_ids.length > 0 ? store_ids : [null];
+  const payloads = targetStoreIds.map((store_id) => ({ ...base, store_id }));
 
   const { data, error } = await supabase.from('acquisition_requests').insert(payloads).select('id');
   if (error) return { error: error.message };
