@@ -6,38 +6,46 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Input, Select, Textarea, FormField } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { createEvent, updateEvent } from '@/actions/events.actions';
-import type { AppUser, EventRecord, PopItem, Store, Zone } from '@/lib/types';
+import type { AppUser, EventRecord, Store, Zone } from '@/lib/types';
+
+const MATERIAL_PRESETS = ['Banderines', 'Camión', 'Carpa', 'Mesa', 'Anillos', 'Inflable'];
+const MATERIAL_OPTIONS = [...MATERIAL_PRESETS, 'Otro'];
 
 export function EventForm({
   user,
   zones,
   stores,
-  popItems,
   event
 }: {
   user: AppUser;
   zones: Zone[];
   stores: Store[];
-  popItems: PopItem[];
   event?: EventRecord;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [materials, setMaterials] = useState<{ pop_item_id: string; quantity: number }[]>(
-    event?.required_pop_materials ?? []
+  const [materials, setMaterials] = useState<{ material_name: string; quantity: number }[]>(
+    event?.required_pop_materials?.map((m) => ({ material_name: m.material_name, quantity: m.quantity })) ?? []
   );
   const [zoneId, setZoneId] = useState(event?.zone_id ?? (user.role === 'zonal_manager' ? user.zone_id ?? '' : ''));
 
   const storesInZone = stores.filter((s) => !zoneId || s.zone_id === zoneId);
 
   function addMaterial() {
-    if (popItems.length === 0) return;
-    setMaterials((m) => [...m, { pop_item_id: popItems[0].id, quantity: 1 }]);
+    setMaterials((m) => [...m, { material_name: MATERIAL_PRESETS[0], quantity: 1 }]);
   }
 
-  function updateMaterial(idx: number, field: 'pop_item_id' | 'quantity', value: string) {
-    setMaterials((m) => m.map((row, i) => (i === idx ? { ...row, [field]: field === 'quantity' ? Number(value) : value } : row)));
+  function updateMaterialOption(idx: number, option: string) {
+    setMaterials((m) => m.map((row, i) => (i === idx ? { ...row, material_name: option === 'Otro' ? '' : option } : row)));
+  }
+
+  function updateMaterialCustomName(idx: number, name: string) {
+    setMaterials((m) => m.map((row, i) => (i === idx ? { ...row, material_name: name } : row)));
+  }
+
+  function updateMaterialQuantity(idx: number, value: string) {
+    setMaterials((m) => m.map((row, i) => (i === idx ? { ...row, quantity: Number(value) } : row)));
   }
 
   function removeMaterial(idx: number) {
@@ -61,7 +69,7 @@ export function EventForm({
       event_type: formData.get('event_type'),
       description: formData.get('description'),
       justification: formData.get('justification'),
-      required_pop_materials: materials
+      required_pop_materials: materials.filter((m) => m.material_name.trim().length > 0)
     };
 
     const result = event ? await updateEvent(event.id, input) : await createEvent(input);
@@ -154,31 +162,43 @@ export function EventForm({
 
       <div className="sm:col-span-2 space-y-2">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-medium text-slate-600">Material POP requerido</p>
+          <p className="text-xs font-medium text-slate-600">Materiales solicitados</p>
           <Button type="button" size="sm" variant="outline" onClick={addMaterial}>
             <Plus size={12} /> Agregar material
           </Button>
         </div>
-        {materials.map((row, idx) => (
-          <div key={idx} className="flex items-center gap-2">
-            <Select value={row.pop_item_id} onChange={(e) => updateMaterial(idx, 'pop_item_id', e.target.value)} className="flex-1">
-              {popItems.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </Select>
-            <Input
-              type="number"
-              min={1}
-              value={row.quantity}
-              onChange={(e) => updateMaterial(idx, 'quantity', e.target.value)}
-              className="w-24"
-            />
-            <button type="button" onClick={() => removeMaterial(idx)} className="text-slate-400 hover:text-red-600">
-              <Trash2 size={16} />
-            </button>
-          </div>
-        ))}
-        {materials.length === 0 ? <p className="text-xs text-slate-400">No se ha agregado material POP requerido.</p> : null}
+        {materials.map((row, idx) => {
+          const isPreset = MATERIAL_PRESETS.includes(row.material_name);
+          const selection = isPreset ? row.material_name : 'Otro';
+          return (
+            <div key={idx} className="flex items-center gap-2">
+              <Select value={selection} onChange={(e) => updateMaterialOption(idx, e.target.value)} className="flex-1">
+                {MATERIAL_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </Select>
+              {selection === 'Otro' ? (
+                <Input
+                  placeholder="Especifica el material"
+                  value={row.material_name}
+                  onChange={(e) => updateMaterialCustomName(idx, e.target.value)}
+                  className="flex-1"
+                />
+              ) : null}
+              <Input
+                type="number"
+                min={1}
+                value={row.quantity}
+                onChange={(e) => updateMaterialQuantity(idx, e.target.value)}
+                className="w-24"
+              />
+              <button type="button" onClick={() => removeMaterial(idx)} className="text-slate-400 hover:text-red-600">
+                <Trash2 size={16} />
+              </button>
+            </div>
+          );
+        })}
+        {materials.length === 0 ? <p className="text-xs text-slate-400">No se han agregado materiales solicitados.</p> : null}
       </div>
 
       {error ? <p className="sm:col-span-2 text-sm text-red-600">{error}</p> : null}

@@ -16,12 +16,10 @@ import type { AppUser, EventRecord } from '@/lib/types';
 export function EventDetailDialog({
   event,
   user,
-  popItemNames = {},
   onClose
 }: {
   event: EventRecord | null;
   user: AppUser;
-  popItemNames?: Record<string, string>;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -92,10 +90,10 @@ export function EventDetailDialog({
 
         {event.required_pop_materials?.length ? (
           <div>
-            <p className="text-xs font-medium text-slate-500">Material POP requerido</p>
+            <p className="text-xs font-medium text-slate-500">Materiales solicitados</p>
             <ul className="list-disc pl-4 text-slate-700">
               {event.required_pop_materials.map((m, i) => (
-                <li key={i}>{m.quantity}x — {popItemNames[m.pop_item_id] ?? m.pop_item_id}</li>
+                <li key={i}>{m.quantity}x — {m.material_name}</li>
               ))}
             </ul>
           </div>

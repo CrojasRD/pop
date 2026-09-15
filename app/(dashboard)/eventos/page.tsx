@@ -6,11 +6,10 @@ export default async function EventosPage() {
   const user = await requireUser();
   const supabase = createClient();
 
-  const [{ data: events }, { data: zones }, { data: stores }, { data: popItems }] = await Promise.all([
+  const [{ data: events }, { data: zones }, { data: stores }] = await Promise.all([
     supabase.from('events').select('*, zone:zones(*), store:stores(*)').order('start_date', { ascending: false }),
     supabase.from('zones').select('*').order('name'),
-    supabase.from('stores').select('*').order('name'),
-    supabase.from('pop_items').select('id, name')
+    supabase.from('stores').select('*').order('name')
   ]);
 
   return (
@@ -23,7 +22,6 @@ export default async function EventosPage() {
         events={(events as any) ?? []}
         zones={(zones as any) ?? []}
         stores={(stores as any) ?? []}
-        popItemNames={Object.fromEntries(((popItems as any) ?? []).map((p: any) => [p.id, p.name]))}
         user={user}
       />
     </div>

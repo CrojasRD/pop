@@ -6,10 +6,9 @@ export default async function NuevoEventoPage({ searchParams }: { searchParams: 
   const user = await requireUser();
   const supabase = createClient();
 
-  const [{ data: zones }, { data: stores }, { data: popItems }] = await Promise.all([
+  const [{ data: zones }, { data: stores }] = await Promise.all([
     supabase.from('zones').select('*').order('name'),
-    supabase.from('stores').select('*').order('name'),
-    supabase.from('pop_items').select('*').order('name')
+    supabase.from('stores').select('*').order('name')
   ]);
 
   let event = undefined;
@@ -26,7 +25,7 @@ export default async function NuevoEventoPage({ searchParams }: { searchParams: 
           {user.role === 'zonal_manager' ? 'El evento quedará en estado Pendiente hasta ser revisado por el administrador.' : 'Completa los datos del evento.'}
         </p>
       </div>
-      <EventForm user={user} zones={(zones as any) ?? []} stores={(stores as any) ?? []} popItems={(popItems as any) ?? []} event={event} />
+      <EventForm user={user} zones={(zones as any) ?? []} stores={(stores as any) ?? []} event={event} />
     </div>
   );
 }

@@ -174,7 +174,7 @@ create table public.events (
   zonal_manager_id uuid references public.users(id) on delete set null,
   event_type text,
   description text,
-  required_pop_materials jsonb not null default '[]'::jsonb, -- [{pop_item_id, quantity}]
+  required_pop_materials jsonb not null default '[]'::jsonb, -- [{material_name, quantity}]
   justification text,
   status event_status not null default 'pending',
   admin_comment text,

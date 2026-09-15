@@ -141,7 +141,7 @@ export interface InventoryMovement {
 }
 
 export interface RequiredMaterial {
-  pop_item_id: string;
+  material_name: string;
   quantity: number;
 }
 

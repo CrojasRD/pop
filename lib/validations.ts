@@ -49,7 +49,7 @@ export const eventBaseSchema = z.object({
   description: z.string().optional(),
   justification: z.string().optional(),
   required_pop_materials: z
-    .array(z.object({ pop_item_id: z.string().uuid(), quantity: z.coerce.number().int().min(1) }))
+    .array(z.object({ material_name: z.string().min(1, 'Indica el material'), quantity: z.coerce.number().int().min(1) }))
     .default([])
 });
 export const eventSchema = eventBaseSchema.refine((data) => data.end_date >= data.start_date, {

@@ -21,13 +21,11 @@ export function EventsView({
   events,
   zones,
   stores,
-  popItemNames = {},
   user
 }: {
   events: EventRecord[];
   zones: Zone[];
   stores: Store[];
-  popItemNames?: Record<string, string>;
   user: AppUser;
 }) {
   const router = useRouter();
@@ -256,7 +254,7 @@ export function EventsView({
       )}
 
       {selected ? (
-        <EventDetailDialog event={selected} user={user} popItemNames={popItemNames} onClose={() => setSelected(null)} />
+        <EventDetailDialog event={selected} user={user} onClose={() => setSelected(null)} />
       ) : null}
 
       <ConfirmDialog
