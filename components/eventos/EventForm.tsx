@@ -6,7 +6,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Input, Select, Textarea, FormField } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { createEvent, updateEvent } from '@/actions/events.actions';
-import type { AppUser, EventRecord, Store, Zone } from '@/lib/types';
+import type { AppUser, EventRecord, Zone } from '@/lib/types';
 
 const MATERIAL_PRESETS = ['Banderines', 'Camión', 'Carpa', 'Mesa', 'Anillos', 'Inflable'];
 const MATERIAL_OPTIONS = [...MATERIAL_PRESETS, 'Otro'];
@@ -14,12 +14,10 @@ const MATERIAL_OPTIONS = [...MATERIAL_PRESETS, 'Otro'];
 export function EventForm({
   user,
   zones,
-  stores,
   event
 }: {
   user: AppUser;
   zones: Zone[];
-  stores: Store[];
   event?: EventRecord;
 }) {
   const router = useRouter();
@@ -29,8 +27,6 @@ export function EventForm({
     event?.required_pop_materials?.map((m) => ({ material_name: m.material_name, quantity: m.quantity })) ?? []
   );
   const [zoneId, setZoneId] = useState(event?.zone_id ?? (user.role === 'zonal_manager' ? user.zone_id ?? '' : ''));
-
-  const storesInZone = stores.filter((s) => !zoneId || s.zone_id === zoneId);
 
   function addMaterial() {
     setMaterials((m) => [...m, { material_name: MATERIAL_PRESETS[0], quantity: 1 }]);
@@ -59,12 +55,9 @@ export function EventForm({
       event_name: formData.get('event_name'),
       start_date: formData.get('start_date'),
       end_date: formData.get('end_date'),
-      start_time: formData.get('start_time'),
-      end_time: formData.get('end_time'),
       city: formData.get('city'),
       province: formData.get('province'),
       location: formData.get('location'),
-      store_id: formData.get('store_id'),
       zone_id: formData.get('zone_id'),
       event_type: formData.get('event_type'),
       description: formData.get('description'),
@@ -92,12 +85,6 @@ export function EventForm({
       <FormField label="Fecha de fin">
         <Input name="end_date" type="date" required defaultValue={event?.end_date} />
       </FormField>
-      <FormField label="Hora de inicio">
-        <Input name="start_time" type="time" defaultValue={event?.start_time ?? ''} />
-      </FormField>
-      <FormField label="Hora de fin">
-        <Input name="end_time" type="time" defaultValue={event?.end_time ?? ''} />
-      </FormField>
 
       <FormField label="Zona">
         {user.role === 'zonal_manager' ? (
@@ -123,14 +110,6 @@ export function EventForm({
             ))}
           </Select>
         )}
-      </FormField>
-      <FormField label="Joyería relacionada">
-        <Select name="store_id" defaultValue={event?.store_id ?? ''}>
-          <option value="">Sin joyería específica</option>
-          {storesInZone.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </Select>
       </FormField>
 
       <FormField label="Ciudad">
