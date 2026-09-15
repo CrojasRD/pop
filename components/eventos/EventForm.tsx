@@ -185,13 +185,14 @@ export function EventForm({
                   className="flex-1"
                 />
               ) : null}
-              <Input
-                type="number"
-                min={1}
-                value={row.quantity}
-                onChange={(e) => updateMaterialQuantity(idx, e.target.value)}
-                className="w-24"
-              />
+              <div className="w-24 shrink-0">
+                <Input
+                  type="number"
+                  min={1}
+                  value={row.quantity}
+                  onChange={(e) => updateMaterialQuantity(idx, e.target.value)}
+                />
+              </div>
               <button type="button" onClick={() => removeMaterial(idx)} className="text-slate-400 hover:text-red-600">
                 <Trash2 size={16} />
               </button>
