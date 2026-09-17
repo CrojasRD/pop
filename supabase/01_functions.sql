@@ -39,16 +39,23 @@ create trigger trg_acquisition_updated_at before update on public.acquisition_re
   for each row execute function public.set_updated_at();
 
 -- Helpers de rol / zona (SECURITY DEFINER para evitar recursión en RLS) ---
+-- IMPORTANTE: exigen status = 'active'. Sin este filtro, un usuario marcado
+-- como inactivo (ej. desde /usuarios) conserva su rol y zona a nivel de RLS
+-- mientras su sesión de Supabase Auth siga vigente, pudiendo seguir leyendo
+-- o escribiendo datos vía la API de Supabase aunque la app ya le niegue el
+-- acceso (requireUser() solo protege las páginas/acciones de Next.js, no la
+-- base de datos en sí). Con el filtro, is_admin() y las políticas basadas en
+-- zone_id dejan de reconocerlo de inmediato en cuanto status pasa a inactive.
 create or replace function public.current_user_role()
 returns user_role
 language sql stable security definer set search_path = public as $$
-  select role from public.users where id = auth.uid();
+  select role from public.users where id = auth.uid() and status = 'active';
 $$;
 
 create or replace function public.current_user_zone_id()
 returns uuid
 language sql stable security definer set search_path = public as $$
-  select zone_id from public.users where id = auth.uid();
+  select zone_id from public.users where id = auth.uid() and status = 'active';
 $$;
 
 create or replace function public.is_admin()

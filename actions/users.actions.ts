@@ -68,6 +68,17 @@ export async function setUserStatus(id: string, status: 'active' | 'inactive'): 
   const { error } = await supabase.from('users').update({ status }).eq('id', id);
   if (error) return { error: error.message };
 
+  // Además de la columna de la app, se bloquea en Supabase Auth: así se
+  // impiden nuevos inicios de sesión y refrescos de token de inmediato, en
+  // vez de depender solo de que expire su sesión actual. El bloqueo real de
+  // datos ya vigentes lo da current_user_role()/current_user_zone_id() (ver
+  // supabase/01_functions.sql), que ahora exigen status = 'active'.
+  const admin = createAdminClient();
+  const { error: authError } = await admin.auth.admin.updateUserById(id, {
+    ban_duration: status === 'inactive' ? '87600000h' : 'none'
+  });
+  if (authError) return { error: authError.message };
+
   await logAudit({ action: 'update', module: 'users', recordId: id, newValue: { status } });
   revalidatePath('/usuarios');
   return { success: true };
