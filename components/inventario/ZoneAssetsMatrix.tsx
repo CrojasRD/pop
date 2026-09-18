@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState, useTransition, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Store as StoreIcon, AlertTriangle, Wrench, Plus, Search } from 'lucide-react';
+import { Store as StoreIcon, AlertTriangle, Wrench, Plus, Search, ChevronDown } from 'lucide-react';
 import { Select, Input } from '@/components/ui/Input';
 import { EmptyState } from '@/components/ui/Table';
 import { MetricCard } from '@/components/dashboard/MetricCard';
@@ -299,7 +299,8 @@ export function ZoneAssetsMatrix({
     return groups;
   }, [orderedItems]);
 
-  const [zoneId, setZoneId] = useState(isAdmin ? zones[0]?.id ?? '' : user.zone_id ?? '');
+  const [zoneId, setZoneId] = useState(isAdmin ? 'all' : user.zone_id ?? '');
+  const [collapsedZones, setCollapsedZones] = useState<Set<string>>(new Set());
   const showAll = isAdmin && zoneId === 'all';
   const [query, setQuery] = useState('');
 
@@ -317,6 +318,31 @@ export function ZoneAssetsMatrix({
     const q = query.trim().toLowerCase();
     return base.filter((s) => s.name.toLowerCase().includes(q) || (s.code ?? '').toLowerCase().includes(q));
   }, [stores, zoneId, showAll, zoneNameById, query]);
+
+  const zoneGroups = useMemo(() => {
+    if (!showAll) return [];
+    const groups: { zoneId: string; zoneName: string; stores: Store[] }[] = [];
+    for (const s of zoneStores) {
+      const key = s.zone_id ?? 'sin-zona';
+      const last = groups[groups.length - 1];
+      if (last && last.zoneId === key) last.stores.push(s);
+      else groups.push({ zoneId: key, zoneName: zoneNameById.get(s.zone_id ?? '') ?? 'Sin zona', stores: [s] });
+    }
+    return groups;
+  }, [showAll, zoneStores, zoneNameById]);
+
+  const groupsToRender: { zoneId: string; zoneName: string; stores: Store[] }[] = showAll
+    ? zoneGroups
+    : [{ zoneId: '', zoneName: '', stores: zoneStores }];
+
+  function toggleZone(id: string) {
+    setCollapsedZones((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const cellMap = useMemo(() => {
     const map = new Map<string, InventoryAssignment>();
@@ -387,14 +413,6 @@ export function ZoneAssetsMatrix({
                 >
                   Joyería
                 </th>
-                {showAll ? (
-                  <th
-                    rowSpan={2}
-                    className="sticky top-0 z-20 min-w-[100px] whitespace-nowrap border-b border-r border-slate-200 bg-slate-50 px-2 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:min-w-[130px] sm:px-3"
-                  >
-                    Zona
-                  </th>
-                ) : null}
                 {categoryGroups.map((g, gi) => (
                   <th
                     key={g.name + gi}
@@ -428,44 +446,65 @@ export function ZoneAssetsMatrix({
               </tr>
             </thead>
             <tbody>
-              {zoneStores.map((s, rowIndex) => (
-                <tr key={s.id} className={cn('border-t border-slate-100 hover:bg-brand-50/40', rowIndex % 2 === 1 && 'bg-slate-50/50')}>
-                  <td
-                    className={cn(
-                      'sticky left-0 z-10 truncate whitespace-nowrap border-r border-slate-200 px-2 py-2 text-xs font-medium text-brand-700 sm:px-3 sm:text-sm',
-                      rowIndex % 2 === 1 ? 'bg-slate-50' : 'bg-white'
-                    )}
-                  >
-                    {s.code ? `${s.code} · ` : ''}{s.name}
-                    {s.status === 'inactive' ? <span className="ml-1.5 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">Inactiva</span> : null}
-                  </td>
-                  {showAll ? (
-                    <td className="whitespace-nowrap border-r border-slate-100 px-2 py-2 text-xs text-slate-500 sm:px-3 sm:text-sm">
-                      {zoneNameById.get(s.zone_id ?? '') ?? '—'}
-                    </td>
-                  ) : null}
-                  {orderedItems.map((it) => {
-                    const a = cellMap.get(`${s.id}:${it.id}`);
-                    const isQuantityItem = QUANTITY_CATEGORIES.has(it.category?.name ?? '');
-                    return (
-                      <td key={it.id} className="border-r border-slate-100 px-1 py-1.5 text-center">
-                        {a ? (
-                          isQuantityItem ? (
-                            <EditableQuantityCell assignment={a} />
-                          ) : (
-                            <EditableStatusCell assignment={a} />
-                          )
-                        ) : isQuantityItem ? (
-                          <CreateQuantityCell storeId={s.id} popItemId={it.id} />
-                        ) : (
-                          <CreateStatusCell storeId={s.id} popItemId={it.id} />
-                        )}
-                      </td>
-                    );
-                  })}
-                  {rowActions ? <td className="whitespace-nowrap px-3 py-2">{rowActions(s)}</td> : null}
-                </tr>
-              ))}
+              {groupsToRender.map((group) => {
+                const collapsed = showAll && collapsedZones.has(group.zoneId);
+                return (
+                  <Fragment key={group.zoneId || 'single'}>
+                    {showAll ? (
+                      <tr className="border-t border-slate-200 bg-slate-100">
+                        <td colSpan={1 + orderedItems.length + (rowActions ? 1 : 0)} className="p-0">
+                          <button
+                            type="button"
+                            onClick={() => toggleZone(group.zoneId)}
+                            className="sticky left-0 flex items-center gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600"
+                          >
+                            <ChevronDown size={14} className={cn('transition-transform', collapsed && '-rotate-90')} />
+                            {group.zoneName}
+                            <span className="font-normal normal-case tracking-normal text-slate-400">
+                              {group.stores.length} joyería{group.stores.length === 1 ? '' : 's'}
+                            </span>
+                          </button>
+                        </td>
+                      </tr>
+                    ) : null}
+                    {collapsed
+                      ? null
+                      : group.stores.map((s, rowIndex) => (
+                          <tr key={s.id} className={cn('border-t border-slate-100 hover:bg-brand-50/40', rowIndex % 2 === 1 && 'bg-slate-50/50')}>
+                            <td
+                              className={cn(
+                                'sticky left-0 z-10 truncate whitespace-nowrap border-r border-slate-200 px-2 py-2 text-xs font-medium text-brand-700 sm:px-3 sm:text-sm',
+                                rowIndex % 2 === 1 ? 'bg-slate-50' : 'bg-white'
+                              )}
+                            >
+                              {s.code ? `${s.code} · ` : ''}{s.name}
+                              {s.status === 'inactive' ? <span className="ml-1.5 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">Inactiva</span> : null}
+                            </td>
+                            {orderedItems.map((it) => {
+                              const a = cellMap.get(`${s.id}:${it.id}`);
+                              const isQuantityItem = QUANTITY_CATEGORIES.has(it.category?.name ?? '');
+                              return (
+                                <td key={it.id} className="border-r border-slate-100 px-1 py-1.5 text-center">
+                                  {a ? (
+                                    isQuantityItem ? (
+                                      <EditableQuantityCell assignment={a} />
+                                    ) : (
+                                      <EditableStatusCell assignment={a} />
+                                    )
+                                  ) : isQuantityItem ? (
+                                    <CreateQuantityCell storeId={s.id} popItemId={it.id} />
+                                  ) : (
+                                    <CreateStatusCell storeId={s.id} popItemId={it.id} />
+                                  )}
+                                </td>
+                              );
+                            })}
+                            {rowActions ? <td className="whitespace-nowrap px-3 py-2">{rowActions(s)}</td> : null}
+                          </tr>
+                        ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
