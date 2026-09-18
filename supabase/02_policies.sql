@@ -15,6 +15,7 @@ alter table public.truck_schedule enable row level security;
 alter table public.assets enable row level security;
 alter table public.replenishment_requests enable row level security;
 alter table public.material_shipments enable row level security;
+alter table public.activation_materials enable row level security;
 alter table public.acquisition_requests enable row level security;
 alter table public.suppliers enable row level security;
 alter table public.expenses enable row level security;
@@ -174,6 +175,13 @@ create policy shipments_update_confirm_delivery on public.material_shipments for
 create policy shipments_delete_admin on public.material_shipments for delete
   using (public.is_admin());
 
+-- ACTIVATION MATERIALS -----------------------------------------------------------
+-- Catálogo global: cualquier usuario activo lo consulta; solo el admin lo edita.
+create policy activation_materials_select on public.activation_materials for select
+  using (public.current_user_role() is not null);
+create policy activation_materials_write on public.activation_materials for all
+  using (public.is_admin()) with check (public.is_admin());
+
 -- ACQUISITION REQUESTS -----------------------------------------------------------
 create policy acquisition_select on public.acquisition_requests for select
   using (public.is_admin() or zone_id = public.current_user_zone_id());
@@ -223,5 +231,6 @@ grant delete on public.assets to authenticated;
 grant insert on public.pop_categories to authenticated;
 grant insert, update on public.pop_items to authenticated;
 grant insert, update, delete on public.material_shipments to authenticated;
+grant insert, update, delete on public.activation_materials to authenticated;
 grant insert, update on public.zones to authenticated;
 grant select on public.audit_logs to authenticated;

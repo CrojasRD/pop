@@ -75,6 +75,7 @@ export const NAV_ITEMS = [
   { href: '/activos', label: 'Activos', icon: 'Boxes', roles: ['admin', 'zonal_manager'] },
   { href: '/reposicion', label: 'Solicitudes de reposición', icon: 'RefreshCcw', roles: ['admin', 'zonal_manager'] },
   { href: '/envios', label: 'Envíos', icon: 'Send', roles: ['admin', 'zonal_manager'] },
+  { href: '/activaciones', label: 'Materiales de activaciones', icon: 'Gift', roles: ['admin', 'zonal_manager'] },
   { href: '/adquisicion', label: 'Solicitudes de adquisición', icon: 'ShoppingCart', roles: ['admin', 'zonal_manager'] },
   { href: '/proveedores', label: 'Proveedores', icon: 'Building2', roles: ['admin'] },
   { href: '/gastos', label: 'Gastos', icon: 'DollarSign', roles: ['admin'] },

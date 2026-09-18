@@ -332,3 +332,13 @@ export interface AuditLog {
 // Tipo mínimo requerido por @supabase/ssr; se puede reemplazar por el
 // tipo generado con `supabase gen types typescript` una vez enlazado el proyecto.
 export type Database = any;
+
+export interface ActivationMaterial {
+  id: string;
+  name: string;
+  quantity: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}

@@ -278,6 +278,19 @@ create table public.material_shipments (
 );
 
 -- ---------------------------------------------------------------------
+-- ACTIVATION MATERIALS  (catálogo de materiales para activaciones, con stock)
+-- ---------------------------------------------------------------------
+create table public.activation_materials (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  quantity integer not null default 0 check (quantity >= 0),
+  notes text,
+  created_by uuid references public.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------
 -- ACQUISITION REQUESTS  (solicitudes de adquisición de nuevos productos)
 -- ---------------------------------------------------------------------
 create table public.acquisition_requests (

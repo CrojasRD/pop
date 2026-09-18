@@ -163,6 +163,13 @@ export const shipmentDeliverySchema = z.object({
   delivery_notes: z.string().optional()
 });
 
+export const activationMaterialSchema = z.object({
+  name: z.string().trim().min(2, 'El nombre es obligatorio'),
+  quantity: z.coerce.number().int().min(0, 'La cantidad no puede ser negativa'),
+  notes: z.string().optional()
+});
+export type ActivationMaterialInput = z.infer<typeof activationMaterialSchema>;
+
 export const acquisitionSchema = z.object({
   zone_id: z.string().uuid('Selecciona una zona'),
   store_ids: z.array(z.string().uuid()).optional().default([]),
