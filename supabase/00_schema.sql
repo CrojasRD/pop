@@ -115,10 +115,10 @@ create table public.pop_items (
   low_stock_threshold integer not null default 5,
   created_by uuid references public.users(id) on delete set null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint pop_items_quantity_balance check (
-    warehouse_quantity + assigned_quantity + repair_quantity + inactive_quantity <= total_quantity
-  )
+  updated_at timestamptz not null default now()
+  -- Sin constraint de balance (warehouse+assigned+repair+inactive <= total):
+  -- los materiales de consumo (volantes, tarjetas, certificados, dípticos,
+  -- sobres) se asignan por joyería sin tope de stock — ver 07_triggers.sql.
 );
 
 -- ---------------------------------------------------------------------

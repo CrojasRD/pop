@@ -115,6 +115,9 @@ export async function assignPopItemToStore(input: {
  * assigned_quantity, el agregado de pop_items se recalcula solo (trigger
  * trg_sync_pop_item_assigned). Lo puede hacer el administrador o el jefe
  * zonal de la zona de esa joyería (reforzado también por RLS).
+ * No valida contra el stock total: para los materiales de consumo (volantes,
+ * tarjetas, certificados, dípticos, sobres) la cantidad por joyería se
+ * registra libremente, sin tope de bodega.
  */
 export async function updateAssignmentDetail(
   assignmentId: string,
@@ -131,13 +134,6 @@ export async function updateAssignmentDetail(
   if (input.assigned_quantity !== undefined) {
     if (!Number.isInteger(input.assigned_quantity) || input.assigned_quantity < 0) {
       return { error: 'La cantidad debe ser un número entero mayor o igual a 0' };
-    }
-    const { data: item } = await supabase.from('pop_items').select('warehouse_quantity').eq('id', existing.pop_item_id).single();
-    if (item) {
-      const available = item.warehouse_quantity + existing.assigned_quantity;
-      if (input.assigned_quantity > available) {
-        return { error: `Stock insuficiente en bodega (${available} disponibles en total)` };
-      }
     }
   }
 
@@ -224,9 +220,9 @@ export async function setAssignmentStatus(input: {
  * Igual que setAssignmentStatus pero para materiales de consumo (volantes,
  * tarjetas, certificados, dípticos, sobres) donde lo que importa es cuánto
  * se entregó, no un estado físico. Si ya existe la asignación, actualiza
- * assigned_quantity (delega en updateAssignmentDetail, que valida stock).
- * Si no existe, la crea con esa cantidad — admin o jefe zonal de esa joyería,
- * mismo criterio que setAssignmentStatus.
+ * assigned_quantity (delega en updateAssignmentDetail). Si no existe, la crea
+ * con esa cantidad — admin o jefe zonal de esa joyería, mismo criterio que
+ * setAssignmentStatus. Sin tope de stock (ver nota en updateAssignmentDetail).
  */
 export async function setAssignmentQuantity(input: {
   storeId: string;
@@ -257,11 +253,8 @@ export async function setAssignmentQuantity(input: {
     return updateAssignmentDetail(existing.id, { assigned_quantity: input.quantity });
   }
 
-  const { data: item } = await supabase.from('pop_items').select('id, warehouse_quantity').eq('id', input.popItemId).single();
+  const { data: item } = await supabase.from('pop_items').select('id').eq('id', input.popItemId).single();
   if (!item) return { error: 'Material no encontrado' };
-  if (item.warehouse_quantity < input.quantity) {
-    return { error: `Stock insuficiente en bodega (${item.warehouse_quantity} disponibles)` };
-  }
 
   // pop_items.assigned_quantity y warehouse_quantity se recalculan solos
   // (trigger trg_sync_pop_item_assigned / trg_sync_pop_item_warehouse) al
