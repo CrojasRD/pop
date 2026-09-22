@@ -84,26 +84,48 @@ export async function deactivatePopItem(id: string): Promise<ActionResult> {
   return { success: true };
 }
 
+/**
+ * Asigna el mismo material/cantidad/fecha a una o varias joyerías. Cada
+ * joyería genera su propia llamada a la función assign_pop_item (misma
+ * cantidad para cada una, no repartida entre todas), que revalida el stock
+ * de bodega en cada llamada — si el stock alcanza para las primeras pero no
+ * para las últimas, esas quedan asignadas igual y se informa cuántas fallaron.
+ */
 export async function assignPopItemToStore(input: {
   popItemId: string;
-  storeId: string;
+  storeIds: string[];
   quantity: number;
   deliveryDate: string;
   notes?: string;
 }): Promise<ActionResult> {
   await requireAdmin();
   const supabase = createClient();
-  const { error } = await supabase.rpc('assign_pop_item', {
-    p_pop_item_id: input.popItemId,
-    p_store_id: input.storeId,
-    p_quantity: input.quantity,
-    p_delivery_date: input.deliveryDate,
-    p_notes: input.notes ?? null
-  });
-  if (error) return { error: error.message };
+
+  if (input.storeIds.length === 0) return { error: 'Selecciona al menos una joyería' };
+
+  let failures = 0;
+  let lastError = '';
+  for (const storeId of input.storeIds) {
+    const { error } = await supabase.rpc('assign_pop_item', {
+      p_pop_item_id: input.popItemId,
+      p_store_id: storeId,
+      p_quantity: input.quantity,
+      p_delivery_date: input.deliveryDate,
+      p_notes: input.notes ?? null
+    });
+    if (error) {
+      failures += 1;
+      lastError = error.message;
+    }
+  }
 
   revalidatePath('/inventario');
   revalidatePath(`/inventario/${input.popItemId}`);
+
+  if (failures > 0) {
+    const ok = input.storeIds.length - failures;
+    return { error: `Se asignó a ${ok} de ${input.storeIds.length} joyería(s). Error en las demás: ${lastError}` };
+  }
   return { success: true };
 }
 

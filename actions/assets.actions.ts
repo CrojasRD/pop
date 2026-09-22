@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { requireUser, requireAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
-import { assetSchema } from '@/lib/validations';
+import { assetSchema, assetCreateSchema } from '@/lib/validations';
 import type { ActionResult } from './inventory.actions';
 
 // Registro de ubicación / responsable / estado lo pueden hacer tanto el
@@ -13,7 +13,7 @@ import type { ActionResult } from './inventory.actions';
 
 export async function createAsset(input: unknown): Promise<ActionResult> {
   const user = await requireUser();
-  const parsed = assetSchema.safeParse(input);
+  const parsed = assetCreateSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 
   if (user.role === 'zonal_manager' && parsed.data.zone_id !== user.zone_id) {
@@ -21,19 +21,27 @@ export async function createAsset(input: unknown): Promise<ActionResult> {
   }
 
   const supabase = createClient();
-  const payload = {
-    ...parsed.data,
-    store_id: parsed.data.store_id || null,
+  const { store_ids, ...rest } = parsed.data;
+  const base = {
+    ...rest,
     location: parsed.data.location || null,
     responsible_name: parsed.data.responsible_name || null,
     notes: parsed.data.notes || null,
     created_by: user.id
   };
 
-  const { data, error } = await supabase.from('assets').insert(payload).select('id').single();
+  // Sin joyería específica: un solo activo sin joyería asociada. Con una o
+  // varias elegidas: un activo por cada una (mismo patrón que Reposición,
+  // Envíos y Adquisición).
+  const targetStoreIds: (string | null)[] = store_ids.length > 0 ? store_ids : [null];
+  const payloads = targetStoreIds.map((store_id) => ({ ...base, store_id }));
+
+  const { data, error } = await supabase.from('assets').insert(payloads).select('id');
   if (error) return { error: error.message };
 
-  await logAudit({ action: 'create', module: 'assets', recordId: data.id, newValue: payload });
+  for (const row of data ?? []) {
+    await logAudit({ action: 'create', module: 'assets', recordId: row.id, newValue: base });
+  }
   revalidatePath('/activos');
   return { success: true };
 }

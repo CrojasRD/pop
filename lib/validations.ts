@@ -82,6 +82,14 @@ export const assetSchema = z.object({
 });
 export type AssetInput = z.infer<typeof assetSchema>;
 
+// Al crear (no al editar) se puede elegir varias joyerías a la vez: una
+// misma solicitud genera un activo por cada una (mismo patrón que
+// Reposición/Envíos/Adquisición).
+export const assetCreateSchema = assetSchema.omit({ store_id: true }).extend({
+  store_ids: z.array(z.string().uuid()).optional().default([])
+});
+export type AssetCreateInput = z.infer<typeof assetCreateSchema>;
+
 export const supplierSchema = z.object({
   name: z.string().min(2, 'El nombre del proveedor es obligatorio'),
   contact_name: z.string().optional(),

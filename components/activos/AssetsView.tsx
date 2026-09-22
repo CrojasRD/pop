@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea, FormField } from '@/components/ui/Input';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import { MultiSearchSelect } from '@/components/ui/MultiSearchSelect';
 import { Dialog } from '@/components/ui/Dialog';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { ExportButtons } from '@/components/shared/ExportButtons';
@@ -88,7 +89,8 @@ export function AssetsView({
   async function handleSubmit(formData: FormData) {
     setLoading(true);
     setError(null);
-    const input = Object.fromEntries(formData.entries());
+    const input: Record<string, unknown> = Object.fromEntries(formData.entries());
+    if (!editing) input.store_ids = formData.getAll('store_ids');
     const result = editing ? await updateAsset(editing.id, input) : await createAsset(input);
     setLoading(false);
     if (result.error) setError(result.error);
@@ -227,15 +229,29 @@ export function AssetsView({
               </Select>
             )}
           </FormField>
-          <FormField label="Joyería relacionada (opcional)">
-            <SearchSelect
-              name="store_id"
-              defaultValue={editing?.store_id ?? ''}
-              placeholder="Escribe para buscar una joyería…"
-              emptyLabel="No se encontró ninguna joyería"
-              options={stores.map((s) => ({ value: s.id, label: s.name }))}
-            />
+          <FormField label={editing ? 'Joyería relacionada (opcional)' : 'Joyería(s) relacionada(s) (opcional)'}>
+            {editing ? (
+              <SearchSelect
+                name="store_id"
+                defaultValue={editing.store_id ?? ''}
+                placeholder="Escribe para buscar una joyería…"
+                emptyLabel="No se encontró ninguna joyería"
+                options={stores.map((s) => ({ value: s.id, label: s.name }))}
+              />
+            ) : (
+              <MultiSearchSelect
+                name="store_ids"
+                placeholder="Escribe para buscar una joyería…"
+                emptyLabel="No se encontró ninguna joyería"
+                options={stores.map((s) => ({ value: s.id, label: s.name }))}
+              />
+            )}
           </FormField>
+          {!editing ? (
+            <p className="text-xs text-slate-400 -mt-2">
+              Si eliges varias joyerías, se crea un activo por cada una.
+            </p>
+          ) : null}
           <FormField label="Estado">
             <Select name="status" defaultValue={editing?.status ?? 'good'}>
               <option value="good">Buen estado</option>

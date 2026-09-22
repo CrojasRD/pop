@@ -6,6 +6,7 @@ import { PackagePlus, PackageCheck, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { Input, Select, Textarea, FormField } from '@/components/ui/Input';
+import { MultiSearchSelect } from '@/components/ui/MultiSearchSelect';
 import { assignPopItemToStore, returnPopItem, writeOffPopItem } from '@/actions/inventory.actions';
 import type { PopItem, Store, InventoryAssignment } from '@/lib/types';
 
@@ -20,7 +21,7 @@ export function InventoryActions({ item, stores }: { item: PopItem; stores: Stor
     setError(null);
     const result = await assignPopItemToStore({
       popItemId: item.id,
-      storeId: String(formData.get('store_id')),
+      storeIds: formData.getAll('store_ids').map(String),
       quantity: Number(formData.get('quantity')),
       deliveryDate: String(formData.get('delivery_date')),
       notes: String(formData.get('notes') ?? '')
@@ -61,15 +62,18 @@ export function InventoryActions({ item, stores }: { item: PopItem; stores: Stor
 
       <Dialog open={dialog === 'assign'} onClose={() => setDialog(null)} title="Asignar material a joyería">
         <form action={handleAssign} className="space-y-4">
-          <FormField label="Joyería">
-            <Select name="store_id" required defaultValue="">
-              <option value="" disabled>Selecciona una joyería</option>
-              {stores.map((s) => (
-                <option key={s.id} value={s.id}>{s.name} — {s.city}</option>
-              ))}
-            </Select>
+          <FormField label="Joyería(s)">
+            <MultiSearchSelect
+              name="store_ids"
+              placeholder="Escribe para buscar una joyería…"
+              emptyLabel="No se encontró ninguna joyería"
+              options={stores.map((s) => ({ value: s.id, label: `${s.name} — ${s.city}` }))}
+            />
           </FormField>
-          <FormField label="Cantidad">
+          <p className="text-xs text-slate-400 -mt-2">
+            Si eliges varias joyerías, cada una recibe la misma cantidad.
+          </p>
+          <FormField label="Cantidad (por joyería)">
             <Input name="quantity" type="number" min={1} max={item.warehouse_quantity} required />
           </FormField>
           <p className="text-xs text-slate-400">Disponible en bodega: {item.warehouse_quantity}</p>
