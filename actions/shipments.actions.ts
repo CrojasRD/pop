@@ -14,15 +14,31 @@ export async function createShipment(input: unknown): Promise<ActionResult> {
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 
   const supabase = createClient();
-  const { store_ids, items, notes } = parsed.data;
+  const { store_ids, zone_id, items, notes } = parsed.data;
 
   // La zona de cada renglón se toma de la propia joyería, igual que en
   // Reposición — así un mismo envío puede llegar a joyerías de distintas
-  // zonas sin pedir ese dato aparte.
-  const { data: storesData, error: storesError } = await supabase.from('stores').select('id, zone_id').in('id', store_ids);
-  if (storesError) return { error: storesError.message };
-  if (!storesData || storesData.length !== store_ids.length) {
-    return { error: 'Una o más joyerías no son válidas o no tienes acceso a ellas' };
+  // zonas sin pedir ese dato aparte. Si se eligió una zona en vez de
+  // joyerías puntuales, se resuelve aquí a todas sus joyerías activas.
+  let storesData: { id: string; zone_id: string | null }[] | null;
+  if (store_ids.length > 0) {
+    const { data, error: storesError } = await supabase.from('stores').select('id, zone_id').in('id', store_ids);
+    if (storesError) return { error: storesError.message };
+    if (!data || data.length !== store_ids.length) {
+      return { error: 'Una o más joyerías no son válidas o no tienes acceso a ellas' };
+    }
+    storesData = data;
+  } else {
+    const { data, error: zoneError } = await supabase
+      .from('stores')
+      .select('id, zone_id')
+      .eq('zone_id', zone_id)
+      .eq('status', 'active');
+    if (zoneError) return { error: zoneError.message };
+    if (!data || data.length === 0) {
+      return { error: 'Esa zona no tiene joyerías activas' };
+    }
+    storesData = data;
   }
 
   const batchId = randomUUID();
@@ -43,7 +59,7 @@ export async function createShipment(input: unknown): Promise<ActionResult> {
   if (error) return { error: error.message };
 
   for (const row of data ?? []) {
-    await logAudit({ action: 'create', module: 'material_shipments', recordId: row.id, newValue: { store_ids, items, notes } });
+    await logAudit({ action: 'create', module: 'material_shipments', recordId: row.id, newValue: { store_ids, zone_id: zone_id || null, items, notes } });
   }
   revalidatePath('/envios');
   return { success: true };

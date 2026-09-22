@@ -13,7 +13,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { createShipment, confirmShipmentDelivery, deleteShipment } from '@/actions/shipments.actions';
 import { canCreateShipment, canConfirmShipmentDelivery } from '@/lib/permissions';
 import { formatDate, formatDateTime } from '@/lib/utils';
-import type { AppUser, MaterialShipment, PopItem, Store } from '@/lib/types';
+import type { AppUser, MaterialShipment, PopItem, Store, Zone } from '@/lib/types';
 
 interface ItemRow {
   pop_item_id: string;
@@ -24,17 +24,20 @@ export function ShipmentsView({
   shipments,
   stores,
   popItems,
+  zones,
   user
 }: {
   shipments: MaterialShipment[];
   stores: Store[];
   popItems: PopItem[];
+  zones: Zone[];
   user: AppUser;
 }) {
   const router = useRouter();
   const isAdmin = canCreateShipment(user);
   const [statusFilter, setStatusFilter] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
+  const [destMode, setDestMode] = useState<'stores' | 'zone'>('stores');
   const [items, setItems] = useState<ItemRow[]>([{ pop_item_id: '', quantity: '' }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +74,7 @@ export function ShipmentsView({
   }
   function resetCreateForm() {
     setItems([{ pop_item_id: '', quantity: '' }]);
+    setDestMode('stores');
     setError(null);
   }
 
@@ -78,7 +82,8 @@ export function ShipmentsView({
     setLoading(true);
     setError(null);
     const input = {
-      store_ids: formData.getAll('store_ids'),
+      store_ids: destMode === 'stores' ? formData.getAll('store_ids') : [],
+      zone_id: destMode === 'zone' ? formData.get('zone_id') : undefined,
       items: JSON.stringify(items.filter((it) => it.pop_item_id && it.quantity)),
       notes: formData.get('notes') ?? undefined
     };
@@ -230,14 +235,48 @@ export function ShipmentsView({
         title="Nuevo envío"
       >
         <form action={handleCreate} className="space-y-4">
-          <FormField label="Joyería(s)">
-            <MultiSearchSelect
-              name="store_ids"
-              placeholder="Escribe para buscar una joyería…"
-              emptyLabel="No se encontró ninguna joyería"
-              options={stores.map((s) => ({ value: s.id, label: s.name }))}
-            />
+          <FormField label="Destino">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={destMode === 'stores' ? 'primary' : 'outline'}
+                onClick={() => setDestMode('stores')}
+              >
+                Por joyería(s)
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={destMode === 'zone' ? 'primary' : 'outline'}
+                onClick={() => setDestMode('zone')}
+              >
+                Por zona
+              </Button>
+            </div>
           </FormField>
+          {destMode === 'stores' ? (
+            <FormField label="Joyería(s)">
+              <MultiSearchSelect
+                name="store_ids"
+                placeholder="Escribe para buscar una joyería…"
+                emptyLabel="No se encontró ninguna joyería"
+                options={stores.map((s) => ({ value: s.id, label: s.name }))}
+              />
+            </FormField>
+          ) : (
+            <FormField label="Zona">
+              <Select name="zone_id" required defaultValue="">
+                <option value="" disabled>Selecciona una zona</option>
+                {zones.map((z) => (
+                  <option key={z.id} value={z.id}>{z.name}</option>
+                ))}
+              </Select>
+              <p className="mt-1 text-xs text-slate-400">
+                Se envía a todas las joyerías activas de esa zona.
+              </p>
+            </FormField>
+          )}
           <FormField label="Materiales enviados">
             <div className="space-y-2">
               {items.map((it, idx) => (
@@ -271,7 +310,9 @@ export function ShipmentsView({
             </div>
           </FormField>
           <p className="text-xs text-slate-400 -mt-2">
-            Si eliges varias joyerías, cada material se envía a todas ellas.
+            {destMode === 'stores'
+              ? 'Si eliges varias joyerías, cada material se envía a todas ellas.'
+              : 'Cada material se envía a todas las joyerías activas de la zona elegida.'}
           </p>
           <FormField label="Nota (opcional)">
             <Textarea name="notes" rows={2} placeholder="Ej: envío por transporte X, referencia de guía…" />

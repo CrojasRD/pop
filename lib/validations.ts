@@ -150,21 +150,30 @@ const shipmentItemSchema = z.object({
   quantity: z.coerce.number().int().min(1, 'La cantidad debe ser mayor a 0')
 });
 
-export const shipmentSchema = z.object({
-  store_ids: z.array(z.string().uuid()).min(1, 'Selecciona al menos una joyería'),
-  items: z
-    .string()
-    .transform((val, ctx) => {
-      try {
-        return JSON.parse(val);
-      } catch {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Materiales inválidos' });
-        return z.NEVER;
-      }
-    })
-    .pipe(z.array(shipmentItemSchema).min(1, 'Agrega al menos un material')),
-  notes: z.string().optional()
-});
+// El destino del envío es una de dos cosas, no ambas: una o varias joyerías
+// puntuales (store_ids), o una zona completa (zone_id, se resuelve del lado
+// del servidor a todas sus joyerías activas).
+export const shipmentSchema = z
+  .object({
+    store_ids: z.array(z.string().uuid()).optional().default([]),
+    zone_id: z.string().uuid().optional().or(z.literal('')),
+    items: z
+      .string()
+      .transform((val, ctx) => {
+        try {
+          return JSON.parse(val);
+        } catch {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Materiales inválidos' });
+          return z.NEVER;
+        }
+      })
+      .pipe(z.array(shipmentItemSchema).min(1, 'Agrega al menos un material')),
+    notes: z.string().optional()
+  })
+  .refine((data) => data.store_ids.length > 0 || !!data.zone_id, {
+    message: 'Selecciona al menos una joyería o una zona',
+    path: ['store_ids']
+  });
 export type ShipmentInput = z.infer<typeof shipmentSchema>;
 
 export const shipmentDeliverySchema = z.object({

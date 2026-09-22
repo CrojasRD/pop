@@ -6,13 +6,14 @@ export default async function EnviosPage() {
   const user = await requireUser();
   const supabase = createClient();
 
-  const [{ data: shipments }, { data: stores }, { data: popItems }] = await Promise.all([
+  const [{ data: shipments }, { data: stores }, { data: popItems }, { data: zones }] = await Promise.all([
     supabase
       .from('material_shipments')
       .select('*, zone:zones(*), store:stores(*), pop_item:pop_items(*), sender:users!material_shipments_sent_by_fkey(*), receiver:users!material_shipments_delivered_by_fkey(*)')
       .order('sent_at', { ascending: false }),
     supabase.from('stores').select('*').order('name'),
-    supabase.from('pop_items').select('*').order('name')
+    supabase.from('pop_items').select('*').order('name'),
+    supabase.from('zones').select('*').neq('name', 'COMERCIAL').order('name')
   ]);
 
   return (
@@ -29,6 +30,7 @@ export default async function EnviosPage() {
         shipments={(shipments as any) ?? []}
         stores={(stores as any) ?? []}
         popItems={(popItems as any) ?? []}
+        zones={(zones as any) ?? []}
         user={user}
       />
     </div>
