@@ -20,8 +20,9 @@ export async function createShipment(input: unknown): Promise<ActionResult> {
   // Reposición — así un mismo envío puede llegar a joyerías de distintas
   // zonas sin pedir ese dato aparte. Si se eligió una zona en vez de
   // joyerías puntuales, se resuelve aquí a todas sus joyerías activas.
+  const isZoneMode = store_ids.length === 0;
   let storesData: { id: string; zone_id: string | null }[] | null;
-  if (store_ids.length > 0) {
+  if (!isZoneMode) {
     const { data, error: storesError } = await supabase.from('stores').select('id, zone_id').in('id', store_ids);
     if (storesError) return { error: storesError.message };
     if (!data || data.length !== store_ids.length) {
@@ -41,18 +42,41 @@ export async function createShipment(input: unknown): Promise<ActionResult> {
     storesData = data;
   }
 
+  // En modo "Por zona" la cantidad escrita es el total a repartir entre las
+  // joyerías de la zona (ej. 5000 entre 10 joyerías = 500 cada una), no la
+  // cantidad que recibe cada una — a diferencia de "Por joyería(s)", donde
+  // cada joyería elegida a mano recibe la cantidad completa.
+  if (isZoneMode) {
+    const n = storesData.length;
+    const tooSmall = items.find((item) => item.quantity < n);
+    if (tooSmall) {
+      return {
+        error: `La cantidad de un material es menor a la cantidad de joyerías activas de la zona (${n}); algunas quedarían en 0. Ingresa un total mayor o elige una zona con menos joyerías.`
+      };
+    }
+  }
+
   const batchId = randomUUID();
-  const payloads = storesData.flatMap((s) =>
-    items.map((item) => ({
-      batch_id: batchId,
-      zone_id: s.zone_id,
-      store_id: s.id,
-      pop_item_id: item.pop_item_id,
-      quantity: item.quantity,
-      status: 'sent' as const,
-      notes: notes || null,
-      sent_by: admin.id
-    }))
+  const n = storesData.length;
+  const payloads = storesData.flatMap((s, storeIdx) =>
+    items.map((item) => {
+      let quantity = item.quantity;
+      if (isZoneMode) {
+        const base = Math.floor(item.quantity / n);
+        const remainder = item.quantity % n;
+        quantity = base + (storeIdx < remainder ? 1 : 0);
+      }
+      return {
+        batch_id: batchId,
+        zone_id: s.zone_id,
+        store_id: s.id,
+        pop_item_id: item.pop_item_id,
+        quantity,
+        status: 'sent' as const,
+        notes: notes || null,
+        sent_by: admin.id
+      };
+    })
   );
 
   const { data, error } = await supabase.from('material_shipments').insert(payloads).select('id');

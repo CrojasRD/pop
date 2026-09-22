@@ -273,7 +273,7 @@ export function ShipmentsView({
                 ))}
               </Select>
               <p className="mt-1 text-xs text-slate-400">
-                Se envía a todas las joyerías activas de esa zona.
+                La cantidad de cada material se reparte entre todas las joyerías activas de esa zona.
               </p>
             </FormField>
           )}
@@ -311,8 +311,8 @@ export function ShipmentsView({
           </FormField>
           <p className="text-xs text-slate-400 -mt-2">
             {destMode === 'stores'
-              ? 'Si eliges varias joyerías, cada material se envía a todas ellas.'
-              : 'Cada material se envía a todas las joyerías activas de la zona elegida.'}
+              ? 'Si eliges varias joyerías, cada una recibe la cantidad completa que escribas.'
+              : 'La cantidad que escribas es el total: se reparte entre las joyerías activas de la zona.'}
           </p>
           <FormField label="Nota (opcional)">
             <Textarea name="notes" rows={2} placeholder="Ej: envío por transporte X, referencia de guía…" />
