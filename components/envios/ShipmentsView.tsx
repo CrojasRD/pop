@@ -10,7 +10,7 @@ import { Input, Select, Textarea, FormField } from '@/components/ui/Input';
 import { MultiSearchSelect } from '@/components/ui/MultiSearchSelect';
 import { Dialog } from '@/components/ui/Dialog';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
-import { createShipment, confirmShipmentDelivery, deleteShipment } from '@/actions/shipments.actions';
+import { createShipment, confirmShipmentDelivery, deleteShipment, deleteShipmentBatch, deleteAllShipments } from '@/actions/shipments.actions';
 import { canCreateShipment, canConfirmShipmentDelivery } from '@/lib/permissions';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import type { AppUser, MaterialShipment, PopItem, Store, Zone } from '@/lib/types';
@@ -45,6 +45,12 @@ export function ShipmentsView({
   const [deleteTarget, setDeleteTarget] = useState<MaterialShipment | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteBatchTarget, setDeleteBatchTarget] = useState<string | null>(null);
+  const [deleteBatchLoading, setDeleteBatchLoading] = useState(false);
+  const [deleteBatchError, setDeleteBatchError] = useState<string | null>(null);
+  const [showDeleteAll, setShowDeleteAll] = useState(false);
+  const [deleteAllLoading, setDeleteAllLoading] = useState(false);
+  const [deleteAllError, setDeleteAllError] = useState<string | null>(null);
 
   const filtered = useMemo(
     () => shipments.filter((s) => statusFilter === 'all' || s.status === statusFilter),
@@ -126,6 +132,33 @@ export function ShipmentsView({
     router.refresh();
   }
 
+  async function handleDeleteBatch() {
+    if (!deleteBatchTarget) return;
+    setDeleteBatchLoading(true);
+    setDeleteBatchError(null);
+    const result = await deleteShipmentBatch(deleteBatchTarget);
+    setDeleteBatchLoading(false);
+    if (result.error) {
+      setDeleteBatchError(result.error);
+      return;
+    }
+    setDeleteBatchTarget(null);
+    router.refresh();
+  }
+
+  async function handleDeleteAll() {
+    setDeleteAllLoading(true);
+    setDeleteAllError(null);
+    const result = await deleteAllShipments();
+    setDeleteAllLoading(false);
+    if (result.error) {
+      setDeleteAllError(result.error);
+      return;
+    }
+    setShowDeleteAll(false);
+    router.refresh();
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -135,9 +168,16 @@ export function ShipmentsView({
           <option value="delivered">Entregado</option>
         </Select>
         {isAdmin ? (
-          <Button onClick={() => { resetCreateForm(); setShowCreate(true); }}>
-            <Plus size={14} /> Nuevo envío
-          </Button>
+          <div className="flex gap-2">
+            {shipments.length > 0 ? (
+              <Button variant="danger" onClick={() => { setDeleteAllError(null); setShowDeleteAll(true); }}>
+                <X size={14} /> Eliminar todos los envíos
+              </Button>
+            ) : null}
+            <Button onClick={() => { resetCreateForm(); setShowCreate(true); }}>
+              <Plus size={14} /> Nuevo envío
+            </Button>
+          </div>
         ) : null}
       </div>
 
@@ -166,6 +206,15 @@ export function ShipmentsView({
                         onClick={(e) => { e.preventDefault(); handleConfirm(pendingIds); }}
                       >
                         Confirmar todo lo pendiente
+                      </Button>
+                    ) : null}
+                    {isAdmin ? (
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={(e) => { e.preventDefault(); setDeleteBatchError(null); setDeleteBatchTarget(batchId); }}
+                      >
+                        Eliminar todo
                       </Button>
                     ) : null}
                     <ChevronDown size={16} className="transition-transform group-open:rotate-180" />
@@ -334,6 +383,28 @@ export function ShipmentsView({
         confirmLabel={deleteLoading ? 'Eliminando…' : 'Eliminar'}
         danger
         error={deleteError}
+      />
+
+      <ConfirmDialog
+        open={!!deleteBatchTarget}
+        onClose={() => { setDeleteBatchTarget(null); setDeleteBatchError(null); }}
+        onConfirm={handleDeleteBatch}
+        title="Eliminar envío completo"
+        description={`¿Confirmas eliminar los ${batches.find((b) => b.batchId === deleteBatchTarget)?.rows.length ?? ''} renglones de este envío? Esta acción no se puede deshacer.`}
+        confirmLabel={deleteBatchLoading ? 'Eliminando…' : 'Eliminar todo'}
+        danger
+        error={deleteBatchError}
+      />
+
+      <ConfirmDialog
+        open={showDeleteAll}
+        onClose={() => { setShowDeleteAll(false); setDeleteAllError(null); }}
+        onConfirm={handleDeleteAll}
+        title="Eliminar todos los envíos"
+        description={`¿Confirmas eliminar los ${shipments.length} renglones de TODOS los envíos registrados (todos los bloques)? Esta acción no se puede deshacer.`}
+        confirmLabel={deleteAllLoading ? 'Eliminando…' : 'Eliminar todo'}
+        danger
+        error={deleteAllError}
       />
     </div>
   );

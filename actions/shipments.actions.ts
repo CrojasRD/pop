@@ -134,3 +134,40 @@ export async function deleteShipment(id: string): Promise<ActionResult> {
   revalidatePath('/envios');
   return { success: true };
 }
+
+/** Elimina de una vez todos los renglones de un mismo envío (batch_id). */
+export async function deleteShipmentBatch(batchId: string): Promise<ActionResult & { deletedCount?: number }> {
+  await requireAdmin();
+  const supabase = createClient();
+  const { error, data } = await supabase.from('material_shipments').delete().eq('batch_id', batchId).select('id');
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: 'No se pudo eliminar el envío. Verifica que tengas permisos de administrador o que todavía exista.' };
+  }
+
+  for (const row of data) {
+    await logAudit({ action: 'delete', module: 'material_shipments', recordId: row.id, newValue: { batch_id: batchId } });
+  }
+  revalidatePath('/envios');
+  return { success: true, deletedCount: data.length };
+}
+
+/** Elimina absolutamente todos los envíos registrados (todos los bloques). */
+export async function deleteAllShipments(): Promise<ActionResult & { deletedCount?: number }> {
+  await requireAdmin();
+  const supabase = createClient();
+  // El filtro `.neq('id', ...)` es un truco para poder pedir "todas las filas"
+  // sin un `where` explícito, ya que Supabase no permite un delete() sin filtro.
+  const { error, data } = await supabase
+    .from('material_shipments')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000')
+    .select('id');
+  if (error) return { error: error.message };
+
+  for (const row of data ?? []) {
+    await logAudit({ action: 'delete', module: 'material_shipments', recordId: row.id, newValue: { bulk: true } });
+  }
+  revalidatePath('/envios');
+  return { success: true, deletedCount: data?.length ?? 0 };
+}
