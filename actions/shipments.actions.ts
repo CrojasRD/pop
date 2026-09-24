@@ -147,12 +147,16 @@ export async function confirmShipmentDelivery(ids: string[], deliveryNotes?: str
         .maybeSingle();
 
       if (existing) {
-        await supabase
+        const { error: syncError } = await supabase
           .from('inventory_assignments')
           .update({ assigned_quantity: existing.assigned_quantity + row.quantity })
           .eq('id', existing.id);
+        // No se corta el flujo por esto: el envío ya quedó marcado como
+        // entregado (lo importante) y esta suma es un efecto secundario.
+        // Se deja registro para poder detectar/corregir manualmente.
+        if (syncError) console.error(`No se pudo sumar la entrega al inventario (assignment ${existing.id}):`, syncError.message);
       } else {
-        await supabase.from('inventory_assignments').insert({
+        const { error: syncError } = await supabase.from('inventory_assignments').insert({
           pop_item_id: row.pop_item_id,
           store_id: row.store_id,
           zone_id: row.zone_id,
@@ -161,6 +165,7 @@ export async function confirmShipmentDelivery(ids: string[], deliveryNotes?: str
           notes: 'Recibido por envío',
           created_by: user.id
         });
+        if (syncError) console.error(`No se pudo crear el registro de inventario (store ${row.store_id}, item ${row.pop_item_id}):`, syncError.message);
       }
     }
   }

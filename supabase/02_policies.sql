@@ -98,6 +98,10 @@ create policy events_insert on public.events for insert
     public.is_admin()
     or (public.current_user_role() = 'zonal_manager' and zone_id = public.current_user_zone_id())
   );
+-- with check repite status = 'pending' (igual que replenishment_update_owner /
+-- acquisition_update_owner más abajo): sin eso, el jefe zonal podía dejar la
+-- fila en status = 'approved' él mismo en la misma actualización, saltándose
+-- la aprobación del administrador.
 create policy events_update on public.events for update
   using (
     public.is_admin()
@@ -105,7 +109,7 @@ create policy events_update on public.events for update
   )
   with check (
     public.is_admin()
-    or (zone_id = public.current_user_zone_id() and created_by = auth.uid())
+    or (zone_id = public.current_user_zone_id() and status = 'pending' and created_by = auth.uid())
   );
 create policy events_delete_admin on public.events for delete
   using (public.is_admin());

@@ -88,6 +88,33 @@ create trigger trg_handle_new_auth_user
   after insert on auth.users
   for each row execute function public.handle_new_auth_user();
 
+-- Bloquea que un usuario se auto-escale: la policy users_update (RLS) permite
+-- a cualquiera editar su propia fila (para poder cambiar su nombre/usuario),
+-- pero por sí sola no impide que esa misma fila incluya un role/zone_id/status
+-- distinto — cualquier usuario podría, con una llamada directa a la API de
+-- Supabase, hacerse admin. Este trigger es el que realmente lo impide,
+-- comparando el valor anterior con el nuevo sin importar quién dispare el
+-- UPDATE ni qué columnas envíe.
+create or replace function public.prevent_self_privilege_escalation()
+returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then
+    if new.role is distinct from old.role
+      or new.zone_id is distinct from old.zone_id
+      or new.status is distinct from old.status then
+      raise exception 'Solo un administrador puede cambiar el rol, la zona o el estado de un usuario';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_prevent_self_privilege_escalation on public.users;
+create trigger trg_prevent_self_privilege_escalation
+  before update on public.users
+  for each row execute function public.prevent_self_privilege_escalation();
+
 -- Registro de auditoría genérico (llamado desde server actions) ----------
 create or replace function public.log_audit(
   p_action audit_action,
