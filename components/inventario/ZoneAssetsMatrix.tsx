@@ -8,7 +8,10 @@ import { EmptyState } from '@/components/ui/Table';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { updateAssignmentDetail, setAssignmentStatus, setAssignmentQuantity } from '@/actions/inventory.actions';
 import { cn, statusColor, statusLabel } from '@/lib/utils';
+import { QUANTITY_CATEGORIES } from '@/lib/constants';
 import type { AppUser, InventoryAssignment, PopItem, Store, Zone } from '@/lib/types';
+
+export { QUANTITY_CATEGORIES };
 
 /**
  * Orden preferente de columnas: primero los materiales que ya se controlaban
@@ -19,13 +22,6 @@ const PRIORITY_CODES = ['ACR-001', 'HAB-001', 'RT-000', 'RT-001', 'RT-002', 'RT-
 
 /** Estados que tiene sentido asignar a un material físico en una joyería. */
 const EDITABLE_STATUSES = ['good', 'damaged', 'maintenance'] as const;
-
-/**
- * Categorías de material de consumo (no tienen un "estado" físico como
- * dañado/en mantenimiento — lo que importa es cuánto se entregó). Para
- * estas, la matriz muestra un campo numérico en vez del selector de estado.
- */
-export const QUANTITY_CATEGORIES = new Set(['Certificados', 'Dípticos', 'Sobres', 'Tarjetas', 'Volantes']);
 
 /** Mismo orden de columnas que usa la matriz: prioritarios primero, luego el resto alfabético. */
 export function orderZoneItems(items: PopItem[]): PopItem[] {
