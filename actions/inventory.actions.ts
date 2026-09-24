@@ -313,6 +313,7 @@ export async function returnPopItem(input: { assignmentId: string; quantity: num
   if (error) return { error: error.message };
 
   revalidatePath('/inventario');
+  revalidatePath('/joyerias');
   return { success: true };
 }
 
