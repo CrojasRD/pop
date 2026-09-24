@@ -36,6 +36,7 @@ export function TruckScheduleView({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -73,8 +74,13 @@ export function TruckScheduleView({
   async function handleCancel() {
     if (!cancelTarget) return;
     setLoading(true);
-    await cancelTruckStop(cancelTarget.id);
+    setCancelError(null);
+    const result = await cancelTruckStop(cancelTarget.id);
     setLoading(false);
+    if (result.error) {
+      setCancelError(result.error);
+      return;
+    }
     setCancelTarget(null);
     setSelected(null);
     router.refresh();
@@ -268,7 +274,7 @@ export function TruckScheduleView({
               <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
                 <Button size="sm" variant="outline" onClick={() => { setEditing(selected); setShowCreate(true); setSelected(null); }}>Editar</Button>
                 {selected.status !== 'cancelled' ? (
-                  <Button size="sm" variant="outline" onClick={() => setCancelTarget(selected)}>Cancelar actividad</Button>
+                  <Button size="sm" variant="outline" onClick={() => { setCancelError(null); setCancelTarget(selected); }}>Cancelar actividad</Button>
                 ) : null}
                 <Button size="sm" variant="danger" onClick={() => setDeleteTarget(selected)}>Eliminar</Button>
               </div>
@@ -279,11 +285,12 @@ export function TruckScheduleView({
 
       <ConfirmDialog
         open={!!cancelTarget}
-        onClose={() => setCancelTarget(null)}
+        onClose={() => { setCancelTarget(null); setCancelError(null); }}
         onConfirm={handleCancel}
         title="Cancelar actividad"
         description={`¿Confirmas cancelar "${cancelTarget?.activity_name}"? Seguirá visible en el historial marcada como cancelada.`}
-        confirmLabel="Cancelar actividad"
+        confirmLabel={loading ? 'Cancelando…' : 'Cancelar actividad'}
+        error={cancelError}
       />
       <ConfirmDialog
         open={!!deleteTarget}

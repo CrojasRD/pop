@@ -98,8 +98,12 @@ export function ReplenishmentView({
       }
     }
     setLoading(true);
-    await reviewReplenishmentRequest(reviewing.id, decision, comment, decision === 'approved' ? Number(approvalQty) : undefined);
+    const result = await reviewReplenishmentRequest(reviewing.id, decision, comment, decision === 'approved' ? Number(approvalQty) : undefined);
     setLoading(false);
+    if (result.error) {
+      setApprovalError(result.error);
+      return;
+    }
     setReviewing(null);
     setComment('');
     setApprovalQty('');
@@ -108,9 +112,14 @@ export function ReplenishmentView({
 
   async function handleDeliver() {
     if (!reviewing) return;
+    setApprovalError(null);
     setLoading(true);
-    await deliverReplenishmentRequest(reviewing.id);
+    const result = await deliverReplenishmentRequest(reviewing.id);
     setLoading(false);
+    if (result.error) {
+      setApprovalError(result.error);
+      return;
+    }
     setReviewing(null);
     router.refresh();
   }
@@ -268,8 +277,9 @@ export function ReplenishmentView({
             ) : null}
 
             {user.role === 'admin' && reviewing.status === 'approved' ? (
-              <div className="border-t border-slate-100 pt-3">
+              <div className="space-y-2 border-t border-slate-100 pt-3">
                 <Button size="sm" onClick={handleDeliver} disabled={loading}>Registrar entrega (mueve inventario)</Button>
+                {approvalError ? <p className="text-xs text-red-600">{approvalError}</p> : null}
               </div>
             ) : null}
 

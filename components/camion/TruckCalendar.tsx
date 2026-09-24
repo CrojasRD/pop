@@ -16,8 +16,26 @@ function toISODate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Fecha de HOY en el calendario local (no UTC). No reemplaza a toISODate:
+ * ese sigue siendo correcto para fechas de medianoche (start_date/end_date
+ * parseados como UTC, o celdas del grid construidas como medianoche local —
+ * ambos casos coinciden con el mismo día calendario en UTC-5). Pero "ahora"
+ * es un instante cualquiera del día, no medianoche, así que toISOString()
+ * ya cayó en el día UTC siguiente entre ~19:00 y 23:59 hora Ecuador (UTC-5),
+ * adelantando el estado (scheduled/in_zone/completed) varias horas antes de
+ * tiempo.
+ */
+function todayLocalISODate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /** Estado visual calculado según la fecha de hoy vs. el rango programado. */
-export function computeTruckDisplayStatus(stop: TruckStop, todayKey = toISODate(new Date())) {
+export function computeTruckDisplayStatus(stop: TruckStop, todayKey = todayLocalISODate()) {
   if (stop.status === 'cancelled') return 'cancelled';
   if (todayKey < stop.start_date) return 'scheduled';
   if (todayKey > stop.end_date) return 'completed';
@@ -59,7 +77,7 @@ export function TruckCalendar({ stops, onSelect }: { stops: TruckStop[]; onSelec
   }, [stops]);
 
   const currentMonth = cursor.getMonth();
-  const todayKey = toISODate(new Date());
+  const todayKey = todayLocalISODate();
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">

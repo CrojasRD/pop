@@ -77,7 +77,8 @@ export async function updateTruckStop(id: string, input: unknown): Promise<Actio
   if (payload.zone_id !== undefined) eventPayload.zone_id = payload.zone_id;
   if (payload.notes !== undefined) eventPayload.justification = payload.notes;
   if (Object.keys(eventPayload).length > 0) {
-    await supabase.from('events').update(eventPayload).eq('truck_stop_id', id);
+    const { error: eventError } = await supabase.from('events').update(eventPayload).eq('truck_stop_id', id);
+    if (eventError) console.error(`No se pudo actualizar el evento vinculado a la actividad de camión ${id}:`, eventError.message);
   }
 
   revalidatePath('/camion');
@@ -92,7 +93,8 @@ export async function cancelTruckStop(id: string): Promise<ActionResult> {
   if (error) return { error: error.message };
 
   await logAudit({ action: 'update', module: 'truck_schedule', recordId: id, newValue: { status: 'cancelled' } });
-  await supabase.from('events').update({ status: 'cancelled' }).eq('truck_stop_id', id);
+  const { error: eventError } = await supabase.from('events').update({ status: 'cancelled' }).eq('truck_stop_id', id);
+  if (eventError) console.error(`No se pudo cancelar el evento vinculado a la actividad de camión ${id}:`, eventError.message);
   revalidatePath('/camion');
   revalidatePath('/eventos');
   return { success: true };

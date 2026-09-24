@@ -65,9 +65,14 @@ export function AcquisitionView({
 
   async function handleReview(status: AcquisitionStatus) {
     if (!reviewing) return;
+    setError(null);
     setLoading(true);
-    await reviewAcquisitionRequest(reviewing.id, status, comment);
+    const result = await reviewAcquisitionRequest(reviewing.id, status, comment);
     setLoading(false);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
     setReviewing(null);
     setComment('');
     router.refresh();
@@ -88,7 +93,7 @@ export function AcquisitionView({
           {user.role === 'admin' ? (
             <ExportButtons rows={exportRows} fileName="solicitudes-adquisicion" title="Solicitudes de Adquisición" />
           ) : null}
-          <Button onClick={() => setShowCreate(true)}><Plus size={14} /> Nueva solicitud</Button>
+          <Button onClick={() => { setError(null); setShowCreate(true); }}><Plus size={14} /> Nueva solicitud</Button>
         </div>
       </div>
 
@@ -117,7 +122,7 @@ export function AcquisitionView({
                 <Td><Badge status={r.status} /></Td>
                 <Td>{formatDate(r.created_at)}</Td>
                 <Td>
-                  <Button size="sm" variant="outline" onClick={() => { setReviewing(r); setComment(r.admin_comment ?? ''); }}>
+                  <Button size="sm" variant="outline" onClick={() => { setReviewing(r); setComment(r.admin_comment ?? ''); setError(null); }}>
                     Ver
                   </Button>
                 </Td>
@@ -224,6 +229,7 @@ export function AcquisitionView({
             {reviewing.status !== 'pending' && reviewing.admin_comment ? (
               <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">{reviewing.admin_comment}</div>
             ) : null}
+            {error ? <p className="text-xs text-red-600">{error}</p> : null}
           </div>
         </Dialog>
       ) : null}

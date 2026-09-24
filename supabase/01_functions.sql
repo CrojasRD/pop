@@ -116,6 +116,14 @@ create trigger trg_prevent_self_privilege_escalation
   for each row execute function public.prevent_self_privilege_escalation();
 
 -- Registro de auditoría genérico (llamado desde server actions) ----------
+-- NOTA: es SECURITY DEFINER y callable por cualquier usuario autenticado (las
+-- server actions lo llaman con el cliente normal, autenticado como el propio
+-- usuario que hizo la acción, no con una llave de servicio aparte). No hay
+-- forma de distinguir aquí "la app lo llamó justo después de una mutación
+-- real" de "alguien lo llamó directo" sin un cambio más grande. Como mitigación
+-- parcial, se exige que p_module sea uno de los módulos reales de la app —
+-- así no se pueden fabricar entradas para módulos inventados, aunque no evita
+-- que alguien registre una acción falsa para un módulo al que sí tiene acceso.
 create or replace function public.log_audit(
   p_action audit_action,
   p_module text,
@@ -127,12 +135,52 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_id uuid;
 begin
+  if p_module not in (
+    'acquisition_requests', 'activation_materials', 'assets', 'auth', 'events',
+    'expenses', 'inventory', 'inventory_assignments', 'material_shipments',
+    'pop_categories', 'pop_items', 'replenishment_requests', 'stores',
+    'suppliers', 'truck_schedule', 'users', 'zones'
+  ) then
+    raise exception 'Módulo de auditoría no reconocido: %', p_module;
+  end if;
+
   insert into public.audit_logs (user_id, action_type, module, record_id, old_value, new_value)
   values (auth.uid(), p_action, p_module, p_record_id, p_old_value, p_new_value)
   returning id into v_id;
   return v_id;
 end;
 $$;
+
+-- La policy shipments_update_confirm_delivery deja que el jefe zonal
+-- actualice un renglón de su zona en 'sent' sin fijar qué columnas puede
+-- tocar; en la práctica confirmShipmentDelivery solo cambia
+-- status/delivered_by/delivered_at/delivery_notes. Este trigger es el que
+-- realmente impide que, con una llamada directa a la API, se altere también
+-- qué material o cuánto se envió/recibió.
+create or replace function public.prevent_shipment_field_tampering()
+returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then
+    if new.quantity is distinct from old.quantity
+      or new.pop_item_id is distinct from old.pop_item_id
+      or new.store_id is distinct from old.store_id
+      or new.zone_id is distinct from old.zone_id
+      or new.batch_id is distinct from old.batch_id
+      or new.sent_by is distinct from old.sent_by
+      or new.sent_at is distinct from old.sent_at
+      or new.notes is distinct from old.notes then
+      raise exception 'Solo un administrador puede modificar los datos del envío; el jefe zonal solo puede confirmar la entrega';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_prevent_shipment_field_tampering on public.material_shipments;
+create trigger trg_prevent_shipment_field_tampering
+  before update on public.material_shipments
+  for each row execute function public.prevent_shipment_field_tampering();
 
 -- Recalcula pop_items.status según cantidades -----------------------------
 create or replace function public.recalc_pop_item_status()
@@ -153,7 +201,13 @@ begin
 end;
 $$;
 
-create trigger trg_pop_items_status before insert or update
+-- Nombrado trg_zz_... (no trg_pop_items_status) a propósito: los triggers
+-- BEFORE del mismo evento se disparan en orden alfabético de su nombre, y
+-- este debe correr DESPUÉS de trg_sync_pop_item_warehouse (07_triggers.sql)
+-- para calcular el status con el warehouse_quantity ya recalculado en el
+-- mismo UPDATE, no con el valor viejo.
+drop trigger if exists trg_pop_items_status on public.pop_items;
+create trigger trg_zz_pop_items_status before insert or update
   of warehouse_quantity, assigned_quantity, repair_quantity, inactive_quantity
   on public.pop_items
   for each row execute function public.recalc_pop_item_status();

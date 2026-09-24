@@ -45,6 +45,7 @@ export function ShipmentsView({
   const [deleteTarget, setDeleteTarget] = useState<MaterialShipment | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [deleteBatchTarget, setDeleteBatchTarget] = useState<string | null>(null);
   const [deleteBatchLoading, setDeleteBatchLoading] = useState(false);
   const [deleteBatchError, setDeleteBatchError] = useState<string | null>(null);
@@ -104,17 +105,22 @@ export function ShipmentsView({
   }
 
   async function handleConfirm(ids: string[]) {
+    setConfirmError(null);
     setConfirmingIds((prev) => {
       const next = new Set(prev);
       ids.forEach((id) => next.add(id));
       return next;
     });
-    await confirmShipmentDelivery(ids);
+    const result = await confirmShipmentDelivery(ids);
     setConfirmingIds((prev) => {
       const next = new Set(prev);
       ids.forEach((id) => next.delete(id));
       return next;
     });
+    if (result.error) {
+      setConfirmError(result.error);
+      return;
+    }
     router.refresh();
   }
 
@@ -161,6 +167,7 @@ export function ShipmentsView({
 
   return (
     <div className="space-y-4">
+      {confirmError ? <p className="text-sm text-red-600">{confirmError}</p> : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-44">
           <option value="all">Todos los estados</option>
@@ -189,12 +196,31 @@ export function ShipmentsView({
             const first = rows[0];
             const pendingIds = rows.filter((r) => canConfirmShipmentDelivery(user, r)).map((r) => r.id);
             const anyConfirming = pendingIds.some((id) => confirmingIds.has(id));
+
+            // Resumen de destino para no tener que abrir el bloque solo para
+            // ver a quién se le envió: si es una sola joyería, su nombre; si
+            // son varias de la misma zona, la zona + cuántas; si abarca
+            // varias zonas, cuántas zonas y joyerías en total.
+            const uniqueStoreNames = Array.from(new Set(rows.map((r) => r.store?.name).filter((n): n is string => !!n)));
+            const uniqueZoneNames = Array.from(new Set(rows.map((r) => r.zone?.name).filter((n): n is string => !!n)));
+            let destinationSummary: string;
+            if (uniqueStoreNames.length === 1) {
+              destinationSummary = uniqueStoreNames[0];
+            } else if (uniqueStoreNames.length <= 3) {
+              destinationSummary = uniqueStoreNames.join(', ');
+            } else if (uniqueZoneNames.length === 1) {
+              destinationSummary = `${uniqueZoneNames[0]} (${uniqueStoreNames.length} joyerías)`;
+            } else {
+              destinationSummary = `${uniqueZoneNames.length} zonas — ${uniqueStoreNames.length} joyerías`;
+            }
+
             return (
               <details key={batchId} open className="group overflow-hidden rounded-xl border border-slate-200">
                 <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 [&::-webkit-details-marker]:hidden">
                   <span>
                     Envío del {formatDate(first?.sent_at)}
                     {first?.sender?.full_name ? <span className="ml-2 font-normal text-slate-400">— {first.sender.full_name}</span> : null}
+                    <span className="ml-2 font-normal text-brand-700">→ {destinationSummary}</span>
                   </span>
                   <span className="flex items-center gap-3 text-xs font-normal text-slate-400">
                     {rows.length} material{rows.length === 1 ? '' : 'es'}

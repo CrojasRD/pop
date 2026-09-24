@@ -40,6 +40,15 @@ export function AssetsView({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Zona elegida dentro del formulario (distinta del filtro de la lista): se
+  // usa para acotar las opciones de "Joyería(s)" a esa zona y evitar crear un
+  // activo con zone_id de una zona pero store_id de una joyería de otra.
+  const [formZoneId, setFormZoneId] = useState(user.role === 'zonal_manager' ? user.zone_id ?? '' : '');
+
+  const formStores = useMemo(
+    () => stores.filter((s) => !formZoneId || s.zone_id === formZoneId),
+    [stores, formZoneId]
+  );
 
   const typeOptions = useMemo(() => {
     const set = new Set<string>(ASSET_TYPES);
@@ -139,7 +148,7 @@ export function AssetsView({
         </div>
         <div className="flex gap-2">
           {isAdmin ? <ExportButtons rows={exportRows} fileName="activos" title="Activos - Orocash" /> : null}
-          <Button onClick={() => { setEditing(null); setShowForm(true); }}>
+          <Button onClick={() => { setEditing(null); setFormZoneId(user.role === 'zonal_manager' ? user.zone_id ?? '' : ''); setShowForm(true); }}>
             <Plus size={14} /> Nuevo activo
           </Button>
         </div>
@@ -181,7 +190,7 @@ export function AssetsView({
                           <Td>
                             <div className="flex gap-1.5">
                               {canEdit ? (
-                                <Button size="sm" variant="outline" onClick={() => { setEditing(a); setShowForm(true); }}>Editar</Button>
+                                <Button size="sm" variant="outline" onClick={() => { setEditing(a); setFormZoneId(a.zone_id); setShowForm(true); }}>Editar</Button>
                               ) : null}
                               {canDeleteAsset(user) ? (
                                 <Button size="sm" variant="danger" onClick={() => setDeleteTarget(a)}>Eliminar</Button>
@@ -223,7 +232,7 @@ export function AssetsView({
                 <input type="hidden" name="zone_id" value={user.zone_id ?? ''} />
               </>
             ) : (
-              <Select name="zone_id" required defaultValue={editing?.zone_id ?? ''}>
+              <Select name="zone_id" required value={formZoneId} onChange={(e) => setFormZoneId(e.target.value)}>
                 <option value="" disabled>Selecciona una zona</option>
                 {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
               </Select>
@@ -232,21 +241,26 @@ export function AssetsView({
           <FormField label={editing ? 'Joyería relacionada (opcional)' : 'Joyería(s) relacionada(s) (opcional)'}>
             {editing ? (
               <SearchSelect
+                key={formZoneId}
                 name="store_id"
-                defaultValue={editing.store_id ?? ''}
+                defaultValue={editing.zone_id === formZoneId ? editing.store_id ?? '' : ''}
                 placeholder="Escribe para buscar una joyería…"
                 emptyLabel="No se encontró ninguna joyería"
-                options={stores.map((s) => ({ value: s.id, label: s.name }))}
+                options={formStores.map((s) => ({ value: s.id, label: s.name }))}
               />
             ) : (
               <MultiSearchSelect
+                key={formZoneId}
                 name="store_ids"
                 placeholder="Escribe para buscar una joyería…"
                 emptyLabel="No se encontró ninguna joyería"
-                options={stores.map((s) => ({ value: s.id, label: s.name }))}
+                options={formStores.map((s) => ({ value: s.id, label: s.name }))}
               />
             )}
           </FormField>
+          {formZoneId ? (
+            <p className="text-xs text-slate-400 -mt-2">Solo se muestran joyerías de la zona elegida.</p>
+          ) : null}
           {!editing ? (
             <p className="text-xs text-slate-400 -mt-2">
               Si eliges varias joyerías, se crea un activo por cada una.

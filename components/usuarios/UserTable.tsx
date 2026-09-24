@@ -18,6 +18,7 @@ export function UserTable({ users, zones }: { users: AppUser[]; zones: Zone[] })
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<AppUser | null | undefined>(undefined);
   const [toggleTarget, setToggleTarget] = useState<AppUser | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +42,14 @@ export function UserTable({ users, zones }: { users: AppUser[]; zones: Zone[] })
 
   async function confirmToggle() {
     if (!toggleTarget) return;
-    await setUserStatus(toggleTarget.id, toggleTarget.status === 'active' ? 'inactive' : 'active');
+    setLoading(true);
+    setError(null);
+    const result = await setUserStatus(toggleTarget.id, toggleTarget.status === 'active' ? 'inactive' : 'active');
+    setLoading(false);
+    if (result.error) {
+      setToggleError(result.error);
+      return;
+    }
     setToggleTarget(null);
     router.refresh();
   }
@@ -82,7 +90,7 @@ export function UserTable({ users, zones }: { users: AppUser[]; zones: Zone[] })
                 <Td>
                   <div className="flex gap-1.5">
                     <Button size="sm" variant="outline" onClick={() => setEditing(u)}><Pencil size={12} /></Button>
-                    <Button size="sm" variant="outline" onClick={() => setToggleTarget(u)}><Power size={12} /></Button>
+                    <Button size="sm" variant="outline" onClick={() => { setToggleError(null); setToggleTarget(u); }}><Power size={12} /></Button>
                   </div>
                 </Td>
               </Tr>
@@ -137,10 +145,12 @@ export function UserTable({ users, zones }: { users: AppUser[]; zones: Zone[] })
 
       <ConfirmDialog
         open={!!toggleTarget}
-        onClose={() => setToggleTarget(null)}
+        onClose={() => { setToggleTarget(null); setToggleError(null); }}
         onConfirm={confirmToggle}
         title={toggleTarget?.status === 'active' ? 'Desactivar usuario' : 'Activar usuario'}
         description={`¿Confirmas ${toggleTarget?.status === 'active' ? 'desactivar' : 'activar'} a "${toggleTarget?.full_name}"?`}
+        confirmLabel={loading ? 'Guardando…' : 'Confirmar'}
+        error={toggleError}
       />
     </div>
   );

@@ -73,8 +73,15 @@ create policy pop_items_delete_admin on public.pop_items for delete
 -- limitado a su propia zona.
 create policy assignments_select on public.inventory_assignments for select
   using (public.is_admin() or zone_id = public.current_user_zone_id());
+-- El zone_id declarado debe coincidir con la zona real de la joyería (no solo
+-- con la del jefe zonal que hace el insert): sin esto, una llamada directa a
+-- la API podría crear una asignación con store_id de una joyería de otra
+-- zona pero zone_id de la propia, descuadrando el panel de Joyerías por zona.
 create policy assignments_write on public.inventory_assignments for insert
-  with check (public.is_admin() or zone_id = public.current_user_zone_id());
+  with check (
+    zone_id = (select s.zone_id from public.stores s where s.id = store_id)
+    and (public.is_admin() or zone_id = public.current_user_zone_id())
+  );
 create policy assignments_update on public.inventory_assignments for update
   using (public.is_admin() or zone_id = public.current_user_zone_id())
   with check (public.is_admin() or zone_id = public.current_user_zone_id());
