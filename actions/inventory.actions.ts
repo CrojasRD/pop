@@ -159,6 +159,25 @@ export async function updateAssignmentDetail(
     }
   }
 
+  // El constraint de la tabla exige assigned_quantity > 0: dejar una joyería en
+  // 0 equivale a que ya no "cuenta" con el material, así que se elimina la fila
+  // (el trigger de sync recalcula pop_items y los movimientos quedan con FK null).
+  if (input.assigned_quantity === 0) {
+    if (user.role !== 'admin') return { error: 'Solo un administrador puede dejar la cantidad en 0' };
+    const { data: deleted, error: deleteError } = await supabase
+      .from('inventory_assignments')
+      .delete()
+      .eq('id', assignmentId)
+      .select('id');
+    if (deleteError) return { error: deleteError.message };
+    if (!deleted || deleted.length === 0) return { error: 'No se pudo quitar el registro' };
+    await logAudit({ action: 'delete', module: 'inventory_assignments', recordId: assignmentId, oldValue: existing });
+    revalidatePath('/joyerias');
+    revalidatePath('/inventario');
+    revalidatePath(`/joyerias/${existing.store_id}`);
+    return { success: true };
+  }
+
   const payload: Record<string, unknown> = {};
   if (input.status !== undefined) payload.status = input.status;
   if (input.assigned_quantity !== undefined) payload.assigned_quantity = input.assigned_quantity;
