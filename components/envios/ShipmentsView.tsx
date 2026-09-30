@@ -70,6 +70,21 @@ export function ShipmentsView({
       .sort((a, b) => new Date(b.rows[0]?.sent_at ?? 0).getTime() - new Date(a.rows[0]?.sent_at ?? 0).getTime());
   }, [filtered]);
 
+  // Con el filtro "Todos los estados" conviene separar los envíos ya
+  // entregados en su totalidad del resto, para no tener que buscarlos
+  // mezclados con los que todavía tienen algo pendiente. Con un filtro de
+  // estado explícito (Enviado/Entregado) esa separación no aporta nada —
+  // todos los bloques visibles ya comparten el mismo estado.
+  const { activeBatches, completedBatches } = useMemo(() => {
+    if (statusFilter !== 'all') return { activeBatches: batches, completedBatches: [] as typeof batches };
+    const active: typeof batches = [];
+    const completed: typeof batches = [];
+    batches.forEach((b) => {
+      (b.rows.every((r) => r.status === 'delivered') ? completed : active).push(b);
+    });
+    return { activeBatches: active, completedBatches: completed };
+  }, [batches, statusFilter]);
+
   function updateItem(index: number, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
   }
@@ -165,6 +180,116 @@ export function ShipmentsView({
     router.refresh();
   }
 
+  function renderBatch(batchId: string, rows: MaterialShipment[], defaultOpen: boolean) {
+    const first = rows[0];
+    const pendingIds = rows.filter((r) => canConfirmShipmentDelivery(user, r)).map((r) => r.id);
+    const anyConfirming = pendingIds.some((id) => confirmingIds.has(id));
+
+    // Resumen de destino para no tener que abrir el bloque solo para
+    // ver a quién se le envió: si es una sola joyería, su nombre; si
+    // son varias de la misma zona, la zona + cuántas; si abarca
+    // varias zonas, cuántas zonas y joyerías en total.
+    const uniqueStoreNames = Array.from(new Set(rows.map((r) => r.store?.name).filter((n): n is string => !!n)));
+    const uniqueZoneNames = Array.from(new Set(rows.map((r) => r.zone?.name).filter((n): n is string => !!n)));
+    let destinationSummary: string;
+    if (uniqueStoreNames.length === 1) {
+      destinationSummary = uniqueStoreNames[0];
+    } else if (uniqueStoreNames.length <= 3) {
+      destinationSummary = uniqueStoreNames.join(', ');
+    } else if (uniqueZoneNames.length === 1) {
+      destinationSummary = `${uniqueZoneNames[0]} (${uniqueStoreNames.length} joyerías)`;
+    } else {
+      destinationSummary = `${uniqueZoneNames.length} zonas — ${uniqueStoreNames.length} joyerías`;
+    }
+
+    return (
+      <details key={batchId} open={defaultOpen || undefined} className="group overflow-hidden rounded-xl border border-slate-200">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 [&::-webkit-details-marker]:hidden">
+          <span>
+            Envío del {formatDate(first?.sent_at)}
+            {first?.sender?.full_name ? <span className="ml-2 font-normal text-slate-400">— {first.sender.full_name}</span> : null}
+            <span className="ml-2 font-normal text-brand-700">→ {destinationSummary}</span>
+          </span>
+          <span className="flex items-center gap-3 text-xs font-normal text-slate-400">
+            {rows.length} material{rows.length === 1 ? '' : 'es'}
+            {pendingIds.length > 0 ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={anyConfirming}
+                onClick={(e) => { e.preventDefault(); handleConfirm(pendingIds); }}
+              >
+                Confirmar todo lo pendiente
+              </Button>
+            ) : null}
+            {isAdmin ? (
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={(e) => { e.preventDefault(); setDeleteBatchError(null); setDeleteBatchTarget(batchId); }}
+              >
+                Eliminar todo
+              </Button>
+            ) : null}
+            <ChevronDown size={16} className="transition-transform group-open:rotate-180" />
+          </span>
+        </summary>
+        {first?.notes ? (
+          <p className="border-t border-slate-100 bg-slate-50/60 px-4 py-2 text-xs text-slate-500">
+            <span className="font-medium">Nota:</span> {first.notes}
+          </p>
+        ) : null}
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left text-sm">
+            <Thead>
+              <tr>
+                <Th>Joyería</Th>
+                <Th>Zona</Th>
+                <Th>Material</Th>
+                <Th>Cantidad</Th>
+                <Th>Estado</Th>
+                <Th>Entregado</Th>
+                <Th>Acciones</Th>
+              </tr>
+            </Thead>
+            <tbody>
+              {rows.map((r) => {
+                const canConfirm = canConfirmShipmentDelivery(user, r);
+                return (
+                  <Tr key={r.id}>
+                    <Td className="font-medium text-slate-800">{r.store?.name ?? '—'}</Td>
+                    <Td>{r.zone?.name ?? '—'}</Td>
+                    <Td>{r.pop_item?.name ?? '—'}</Td>
+                    <Td>{r.quantity}</Td>
+                    <Td><Badge status={r.status} /></Td>
+                    <Td>{r.delivered_at ? formatDateTime(r.delivered_at) : '—'}</Td>
+                    <Td>
+                      <div className="flex gap-1.5">
+                        {canConfirm ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={confirmingIds.has(r.id)}
+                            onClick={() => handleConfirm([r.id])}
+                          >
+                            Marcar entregado
+                          </Button>
+                        ) : null}
+                        {isAdmin ? (
+                          <Button size="sm" variant="danger" onClick={() => setDeleteTarget(r)}>Eliminar</Button>
+                        ) : null}
+                      </div>
+                    </Td>
+                  </Tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {confirmError ? <p className="text-sm text-red-600">{confirmError}</p> : null}
@@ -191,116 +316,18 @@ export function ShipmentsView({
       {batches.length === 0 ? (
         <EmptyState message="No hay envíos registrados." />
       ) : (
-        <div className="space-y-3">
-          {batches.map(({ batchId, rows }) => {
-            const first = rows[0];
-            const pendingIds = rows.filter((r) => canConfirmShipmentDelivery(user, r)).map((r) => r.id);
-            const anyConfirming = pendingIds.some((id) => confirmingIds.has(id));
-
-            // Resumen de destino para no tener que abrir el bloque solo para
-            // ver a quién se le envió: si es una sola joyería, su nombre; si
-            // son varias de la misma zona, la zona + cuántas; si abarca
-            // varias zonas, cuántas zonas y joyerías en total.
-            const uniqueStoreNames = Array.from(new Set(rows.map((r) => r.store?.name).filter((n): n is string => !!n)));
-            const uniqueZoneNames = Array.from(new Set(rows.map((r) => r.zone?.name).filter((n): n is string => !!n)));
-            let destinationSummary: string;
-            if (uniqueStoreNames.length === 1) {
-              destinationSummary = uniqueStoreNames[0];
-            } else if (uniqueStoreNames.length <= 3) {
-              destinationSummary = uniqueStoreNames.join(', ');
-            } else if (uniqueZoneNames.length === 1) {
-              destinationSummary = `${uniqueZoneNames[0]} (${uniqueStoreNames.length} joyerías)`;
-            } else {
-              destinationSummary = `${uniqueZoneNames.length} zonas — ${uniqueStoreNames.length} joyerías`;
-            }
-
-            return (
-              <details key={batchId} open className="group overflow-hidden rounded-xl border border-slate-200">
-                <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 [&::-webkit-details-marker]:hidden">
-                  <span>
-                    Envío del {formatDate(first?.sent_at)}
-                    {first?.sender?.full_name ? <span className="ml-2 font-normal text-slate-400">— {first.sender.full_name}</span> : null}
-                    <span className="ml-2 font-normal text-brand-700">→ {destinationSummary}</span>
-                  </span>
-                  <span className="flex items-center gap-3 text-xs font-normal text-slate-400">
-                    {rows.length} material{rows.length === 1 ? '' : 'es'}
-                    {pendingIds.length > 0 ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={anyConfirming}
-                        onClick={(e) => { e.preventDefault(); handleConfirm(pendingIds); }}
-                      >
-                        Confirmar todo lo pendiente
-                      </Button>
-                    ) : null}
-                    {isAdmin ? (
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={(e) => { e.preventDefault(); setDeleteBatchError(null); setDeleteBatchTarget(batchId); }}
-                      >
-                        Eliminar todo
-                      </Button>
-                    ) : null}
-                    <ChevronDown size={16} className="transition-transform group-open:rotate-180" />
-                  </span>
-                </summary>
-                {first?.notes ? (
-                  <p className="border-t border-slate-100 bg-slate-50/60 px-4 py-2 text-xs text-slate-500">
-                    <span className="font-medium">Nota:</span> {first.notes}
-                  </p>
-                ) : null}
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-left text-sm">
-                    <Thead>
-                      <tr>
-                        <Th>Joyería</Th>
-                        <Th>Zona</Th>
-                        <Th>Material</Th>
-                        <Th>Cantidad</Th>
-                        <Th>Estado</Th>
-                        <Th>Entregado</Th>
-                        <Th>Acciones</Th>
-                      </tr>
-                    </Thead>
-                    <tbody>
-                      {rows.map((r) => {
-                        const canConfirm = canConfirmShipmentDelivery(user, r);
-                        return (
-                          <Tr key={r.id}>
-                            <Td className="font-medium text-slate-800">{r.store?.name ?? '—'}</Td>
-                            <Td>{r.zone?.name ?? '—'}</Td>
-                            <Td>{r.pop_item?.name ?? '—'}</Td>
-                            <Td>{r.quantity}</Td>
-                            <Td><Badge status={r.status} /></Td>
-                            <Td>{r.delivered_at ? formatDateTime(r.delivered_at) : '—'}</Td>
-                            <Td>
-                              <div className="flex gap-1.5">
-                                {canConfirm ? (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={confirmingIds.has(r.id)}
-                                    onClick={() => handleConfirm([r.id])}
-                                  >
-                                    Marcar entregado
-                                  </Button>
-                                ) : null}
-                                {isAdmin ? (
-                                  <Button size="sm" variant="danger" onClick={() => setDeleteTarget(r)}>Eliminar</Button>
-                                ) : null}
-                              </div>
-                            </Td>
-                          </Tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </details>
-            );
-          })}
+        <div className="space-y-5">
+          <div className="space-y-3">
+            {activeBatches.map(({ batchId, rows }) => renderBatch(batchId, rows, true))}
+          </div>
+          {completedBatches.length > 0 ? (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Completados ({completedBatches.length})
+              </p>
+              {completedBatches.map(({ batchId, rows }) => renderBatch(batchId, rows, false))}
+            </div>
+          ) : null}
         </div>
       )}
 
