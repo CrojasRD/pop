@@ -470,6 +470,15 @@ export async function bulkUpdateAssignments(
       continue;
     }
 
+    // Igual que en la celda editable de Joyerías: 0 no es un valor válido para
+    // assigned_quantity (constraint > 0), así que equivale a quitar el material.
+    if (row.quantity === 0) {
+      const { error } = await supabase.from('inventory_assignments').delete().eq('id', existing.id);
+      if (error) failed.push({ row, error: error.message });
+      else updated++;
+      continue;
+    }
+
     const { error } = await supabase
       .from('inventory_assignments')
       .update({ status: row.status, assigned_quantity: row.quantity })
